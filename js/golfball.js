@@ -59,18 +59,19 @@ export class GolfBall {
   }
 
   // Check if player can hit the ball and handle the hit
-  checkHit(player) {
+  checkHit(player, clubManager = null) {
     // Calculate distance between player and ball
     const distance = Phaser.Math.Distance.Between(
       player.x, player.y,
       this.sprite.x, this.sprite.y
     );
 
-    // If player is close enough and swing animation is playing
-    if (distance < 80 && player.anims.currentAnim?.key === 'swing') {
+    // If player is close enough and swing follow-through animation is playing
+    if (distance < 80 && (player.anims.currentAnim?.key === 'swing' || player.anims.currentAnim?.key === 'swing_followthrough')) {
       // Only hit the ball if it hasn't been hit recently
       if (!this.hitRecently) {
-        this.hit(player);
+        const powerMultiplier = player.getCurrentPower();
+        this.hit(player, clubManager, powerMultiplier);
         this.hitRecently = true;
         
         // Reset the hit flag after a short delay
@@ -82,17 +83,34 @@ export class GolfBall {
   }
 
   // Hit the ball with realistic golf physics
-  hit(player) {
+  hit(player, clubManager = null, powerMultiplier = 1.0) {
     // Calculate hit direction based on player facing direction
     const hitDirection = player.flipX ? -1 : 1;
     
-    // Launch the ball with realistic golf physics
-    const launchVelocityX = hitDirection * 400; // Horizontal speed
-    const launchVelocityY = -1000; // Upward speed (negative is up)
+    // Get club properties or use default driver settings
+    let clubProps = {
+      horizontalPower: 400,
+      launchAngle: -1000,
+      power: 1.0,
+      canFly: true,
+      name: 'Driver'
+    };
+    
+    if (clubManager) {
+      clubProps = clubManager.getCurrentClubProperties();
+    }
+    
+    // Apply power multiplier from charging system
+    const totalPowerMultiplier = clubProps.power * powerMultiplier;
+    
+    // Calculate launch velocities based on club and charged power
+    const launchVelocityX = hitDirection * clubProps.horizontalPower * totalPowerMultiplier;
+    const launchVelocityY = clubProps.canFly ? clubProps.launchAngle * totalPowerMultiplier : 0;
     
     this.sprite.body.setVelocity(launchVelocityX, launchVelocityY);
     
-    console.log("Ball hit! Flying through the air...");
+    const powerPercent = Math.round(powerMultiplier * 100);
+    console.log(`Ball hit with ${clubProps.name} at ${powerPercent}% power! ${clubProps.canFly ? 'Flying through the air' : 'Rolling on the ground'}...`);
   }
 
   // Reset ball to a specific position

@@ -5,12 +5,26 @@ export class Player {
   constructor(scene, x = 100, y = 630) {
     this.scene = scene;
     this.speed = 160;
+    this.isSwingInProgress = false;
+    this.isChargingPower = false;
+    this.powerChargeStartTime = 0;
+    this.currentPower = 0;
+    this.minPower = 0.2; // Minimum power (20%)
+    this.maxPower = 2.0; // Maximum power (200%)
+    this.chargeTime = 2000; // Time in ms to reach max power
     
     // Create player sprite
     this.sprite = scene.physics.add.sprite(x, y, "golfer_walking_0");
     
     // Keep player within world bounds (prevents falling off the world)
     this.sprite.setCollideWorldBounds(true);
+    
+    // Listen for animation complete events
+    this.sprite.on('animationcomplete', (anim) => {
+      if (anim.key === 'swing' || anim.key === 'swing_followthrough') {
+        this.isSwingInProgress = false;
+      }
+    });
   }
 
   // Get player position
@@ -39,7 +53,27 @@ export class Player {
 
   // Update player movement and animations based on input
   update(keys) {
-    // Move the player left and right
+    // Don't allow movement or other actions while swinging
+    if (this.isSwingInProgress) {
+      this.sprite.setVelocityX(0);
+      return;
+    }
+
+    // Handle power charging and swing
+    if (keys.space.isDown) {
+      if (!this.isChargingPower) {
+        this.startPowerCharge();
+      } else {
+        this.updatePowerCharge();
+      }
+      return;
+    } else if (this.isChargingPower) {
+      // Space was released, execute swing with current power
+      this.executeSwing();
+      return;
+    }
+
+    // Move the player left and right (only when not charging power)
     if (keys.left.isDown) {
       this.sprite.setVelocityX(-this.speed);
       this.sprite.flipX = true;
@@ -48,12 +82,55 @@ export class Player {
       this.sprite.setVelocityX(this.speed);
       this.sprite.flipX = false;
       this.sprite.play("walk", true);
-    } else if (keys.space.isDown) {
-      this.sprite.play("swing", true);
     } else {
       this.sprite.setVelocityX(0);
       this.sprite.anims.stop();
     }
+  }
+
+  // Start power charging
+  startPowerCharge() {
+    this.isChargingPower = true;
+    this.powerChargeStartTime = this.scene.time.now;
+    this.currentPower = this.minPower;
+    this.sprite.setVelocityX(0); // Stop movement while charging
+    
+    // Start backswing animation (holding club up)
+    this.sprite.play("backswing");
+  }
+
+  // Update power charge based on time held
+  updatePowerCharge() {
+    const elapsedTime = this.scene.time.now - this.powerChargeStartTime;
+    const chargeProgress = Math.min(elapsedTime / this.chargeTime, 1.0);
+    
+    // Calculate power: start at minPower, go up to maxPower
+    this.currentPower = this.minPower + (this.maxPower - this.minPower) * chargeProgress;
+  }
+
+  // Execute swing with charged power
+  executeSwing() {
+    this.isChargingPower = false;
+    this.isSwingInProgress = true;
+    
+    // Play the follow-through animation to complete the swing
+    this.sprite.play("swing_followthrough");
+  }
+
+  // Get current power level (0.0 to 1.0 for UI display)
+  getPowerLevel() {
+    if (!this.isChargingPower) return 0;
+    return (this.currentPower - this.minPower) / (this.maxPower - this.minPower);
+  }
+
+  // Get current power multiplier for ball physics
+  getCurrentPower() {
+    return this.currentPower;
+  }
+
+  // Check if currently charging power
+  get chargingPower() {
+    return this.isChargingPower;
   }
 
   // Set player position
@@ -68,7 +145,8 @@ export class Player {
 
   // Check if player is currently swinging
   isSwinging() {
-    return this.sprite.anims.currentAnim?.key === 'swing';
+    const currentAnim = this.sprite.anims.currentAnim?.key;
+    return currentAnim === 'swing' || currentAnim === 'swing_followthrough';
   }
 
   // Check if player is currently walking
