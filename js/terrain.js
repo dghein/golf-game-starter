@@ -4,7 +4,7 @@
 export class Terrain {
   constructor(scene) {
     this.scene = scene;
-    this.width = 20000; // Match the world width
+    this.width = 13200; // 660 yards = 13,200 pixels
     this.baseHeight = 600; // Base ground level
     this.heightMap = [];
     this.terrainGraphics = null;
@@ -12,16 +12,29 @@ export class Terrain {
     
     // Green properties
     this.greenWidth = 1024; // Approximately screen width
-    this.greenStartX = this.width - this.greenWidth - 500; // Position near end
+    this.greenStartX = this.width - this.greenWidth - 200; // Position at end of 660-yard hole
     this.greenEndX = this.greenStartX + this.greenWidth;
     this.greenHeight = 25; // Reduced elevation for easier putting (was 50)
     this.greenSlopeWidth = 300; // Wider, gentler slopes (was 200)
+    
+    // Pin/hole position (center of green)
+    this.pinX = this.greenStartX + (this.greenWidth / 2);
+    this.pinY = this.baseHeight - this.greenHeight;
+    
+    // Water hazard properties (behind the green)
+    this.waterStartX = this.greenEndX + 50; // Start 50 pixels after green ends
+    this.waterWidth = 400; // Width of water hazard
+    this.waterEndX = this.waterStartX + this.waterWidth;
+    // Water level will be set after terrain generation
     
     // Generate the terrain height map
     this.generateTerrain();
     
     // Smooth the terrain for more natural curves
     this.smoothTerrain();
+    
+    // Set water level to match the actual green surface height
+    this.waterLevel = this.getHeightAtX(this.greenEndX);
     
     // Create visual representation
     this.createTerrainGraphics();
@@ -158,6 +171,21 @@ export class Terrain {
     return x >= leftSlopeStart && x <= rightSlopeEnd;
   }
 
+  // Get pin position
+  getPinPosition() {
+    return {
+      x: this.pinX,
+      y: this.pinY
+    };
+  }
+
+  // Check if ball is in water hazard
+  isBallInWater(ballX, ballY) {
+    return ballX >= this.waterStartX && 
+           ballX <= this.waterEndX && 
+           ballY >= this.waterLevel - 20; // Trigger collision slightly above water surface
+  }
+
   createTerrainGraphics() {
     this.terrainGraphics = this.scene.add.graphics();
     
@@ -188,6 +216,9 @@ export class Terrain {
     
     // Add green area overlay
     this.addGreenOverlay();
+    
+    // Add water hazard
+    this.addWaterHazard();
     
     // Add outline
     this.terrainGraphics.lineStyle(2, 0x388E3C); // Darker green outline
@@ -259,6 +290,38 @@ export class Terrain {
     }
   }
 
+  addWaterHazard() {
+    // Create water hazard graphics
+    const waterGraphics = this.scene.add.graphics();
+    waterGraphics.fillStyle(0x1976D2); // Blue water color
+    
+    // Draw rectangular water hazard
+    waterGraphics.fillRect(
+      this.waterStartX, 
+      this.waterLevel, 
+      this.waterWidth, 
+      768 - this.waterLevel // Extend to bottom of screen
+    );
+    
+    // Add water surface with lighter blue
+    waterGraphics.fillStyle(0x42A5F5); // Lighter blue for surface
+    waterGraphics.fillRect(
+      this.waterStartX, 
+      this.waterLevel, 
+      this.waterWidth, 
+      8 // Thin surface layer
+    );
+    
+    // Add water outline
+    waterGraphics.lineStyle(2, 0x0D47A1); // Dark blue outline
+    waterGraphics.strokeRect(
+      this.waterStartX, 
+      this.waterLevel, 
+      this.waterWidth, 
+      768 - this.waterLevel
+    );
+  }
+
   addTerrainDetails() {
     // Add some grass texture lines for regular terrain
     this.terrainGraphics.lineStyle(1, 0x66BB6A, 0.3);
@@ -285,6 +348,11 @@ export class Terrain {
   getHeightAtX(x) {
     // Clamp x to terrain bounds
     x = Math.max(0, Math.min(x, this.width));
+    
+    // Check if position is in water hazard - return much lower height so ball falls in
+    if (x >= this.waterStartX && x <= this.waterEndX) {
+      return this.waterLevel + 100; // Return height well below water surface so ball sinks
+    }
     
     // Find the closest terrain points
     const segmentWidth = this.width / this.segments;

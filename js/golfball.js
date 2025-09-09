@@ -36,9 +36,14 @@ export class GolfBall {
     
     // Sound properties
     this.hitSound = null; // Will be set by GameScene
+    this.splashSound = null; // Will be set by GameScene
     
     // Camera callback properties
     this.onBallHitCallback = null; // Will be set by GameScene
+    
+    // Water hazard properties
+    this.originalPosition = { x: x, y: y }; // Store original position for water penalty
+    this.onWaterPenaltyCallback = null; // Will be set by GameScene
     
     // Conversion: More pixels per yard for finer granularity
     // 20 pixels per yard means 200 yards = 4000 pixels
@@ -92,9 +97,19 @@ export class GolfBall {
     this.hitSound = hitSound;
   }
 
+  // Set splash sound reference
+  setSplashSound(splashSound) {
+    this.splashSound = splashSound;
+  }
+
   // Set callback for when ball gets hit (for camera switching)
   setOnBallHitCallback(callback) {
     this.onBallHitCallback = callback;
+  }
+
+  // Set water penalty callback
+  setOnWaterPenaltyCallback(callback) {
+    this.onWaterPenaltyCallback = callback;
   }
 
   // Apply wind effects during flight
@@ -153,6 +168,8 @@ export class GolfBall {
           friction = 0.92; // Reduced wedge friction (still higher than others but more reasonable)
         } else if (clubType === 'driver') {
           friction = 0.975; // Moderate friction for driver shots (realistic roll distance)
+        } else if (clubType === 'iron') {
+          friction = 0.88; // High friction for iron - minimal roll when landing
         } else if (clubType === 'putter') {
           friction = 0.999; // Minimal friction for putter shots (maximum rolling distance)
         }
@@ -170,6 +187,8 @@ export class GolfBall {
           stopThreshold = 10; // Moderate threshold for driver (realistic rolling distance)
         } else if (clubType === 'wedge') {
           stopThreshold = 12; // Higher threshold for wedge (stops sooner but still reasonable)
+        } else if (clubType === 'iron') {
+          stopThreshold = 15; // High threshold for iron - stops quickly with minimal roll
         } else if (clubType === 'putter') {
           stopThreshold = 2; // Minimum threshold for putter (allows maximum rolling distance)
         }
@@ -233,6 +252,7 @@ export class GolfBall {
     
     // Add realistic shot variation (±5-10% depending on club)
     const variationRange = clubProps.name === 'Driver' ? 0.08 : // ±8% for driver
+                          clubProps.name === 'Iron' ? 0.04 :    // ±4% for iron (most accurate)
                           clubProps.name === 'Wedge' ? 0.05 :   // ±5% for wedge (more precise)
                           0.06; // ±6% for putter
     
@@ -411,6 +431,9 @@ export class GolfBall {
   updateDistance(deltaTime = 16) {
     if (!this.isTracking) return;
 
+    // Check for water hazard collision first
+    this.checkWaterCollision();
+
     // Calculate distance from starting position
     const distanceX = this.sprite.x - this.startX;
     const distanceY = this.sprite.y - this.startY;
@@ -420,6 +443,47 @@ export class GolfBall {
     if (this.isStablyStopped(deltaTime) && this.currentDistance > 0) {
       this.stopDistanceTracking();
     }
+  }
+
+  // Check if ball has landed in water hazard
+  checkWaterCollision() {
+    if (this.terrain && this.terrain.isBallInWater(this.sprite.x, this.sprite.y)) {
+      console.log('Ball landed in water! Applying penalty stroke...');
+      
+      // Play splash sound
+      if (this.splashSound) {
+        this.splashSound.play();
+      }
+      
+      // Stop the ball immediately
+      this.sprite.body.setVelocity(0, 0);
+      this.stopDistanceTracking();
+      
+      // Find a safe drop position near the water hazard
+      const dropPosition = this.findWaterDropPosition();
+      this.sprite.setPosition(dropPosition.x, dropPosition.y);
+      
+      // Call penalty callback to add stroke
+      if (this.onWaterPenaltyCallback) {
+        this.onWaterPenaltyCallback();
+      }
+      
+      // Reset ball state
+      this.unstabilizeBall();
+    }
+  }
+
+  // Find a safe position to drop the ball near the water hazard
+  findWaterDropPosition() {
+    if (!this.terrain) {
+      return { x: this.originalPosition.x, y: this.originalPosition.y };
+    }
+    
+    // Drop the ball just before the water hazard starts, on safe ground
+    const dropX = this.terrain.waterStartX - 80; // 80 pixels before water starts
+    const dropY = this.terrain.getHeightAtX(dropX) - this.groundRadius - 5; // On ground surface
+    
+    return { x: dropX, y: dropY };
   }
 
   // Stop distance tracking and save final distance

@@ -4,6 +4,7 @@
 
 export const CLUB_TYPES = {
   DRIVER: 'driver',
+  IRON: 'iron',
   PUTTER: 'putter',
   WEDGE: 'wedge'
 };
@@ -17,19 +18,27 @@ export const CLUB_PROPERTIES = {
     canFly: true,
     description: 'Long distance shots'
   },
+  [CLUB_TYPES.IRON]: {
+    name: 'Iron',
+    power: 1.17, // Reduced by 5% from 1.23 (1.23 * 0.95 = 1.17)
+    launchAngle: -1200, // Medium arc - higher than driver, lower than wedge
+    horizontalPower: 646, // Reduced by 5% from 680 (680 * 0.95 = 646)
+    canFly: true,
+    description: 'Medium distance, accurate shots'
+  },
   [CLUB_TYPES.PUTTER]: {
     name: 'Putter',
-    power: 2.5, // Maximum power for excellent putting distance
+    power: 1.5, // Moderate power for gentle, precise putting
     launchAngle: 0, // No upward velocity - stays on ground
-    horizontalPower: 800, // Very high horizontal power for maximum rolling
+    horizontalPower: 500, // Moderate horizontal power for controlled distance
     canFly: false,
-    description: 'Maximum rolling distance'
+    description: 'Precise ground shots'
   },
   [CLUB_TYPES.WEDGE]: {
     name: 'Wedge',
-    power: 0.9, // Increased by 1.5x (0.6 * 1.5 = 0.9)
-    launchAngle: -2700, // Increased by 1.5x (1800 * 1.5 = 2700)
-    horizontalPower: 225, // Increased by 1.5x (150 * 1.5 = 225)
+    power: 1.2, // Increased for 30-40 yards more distance
+    launchAngle: -2700, // Keep high arc characteristic
+    horizontalPower: 320, // Increased significantly for more distance
     canFly: true,
     description: 'High arc, medium distance shots'
   }
@@ -70,6 +79,11 @@ export class ClubManager {
   // Switch to putter
   selectPutter() {
     return this.selectClub(CLUB_TYPES.PUTTER);
+  }
+
+  // Switch to iron
+  selectIron() {
+    return this.selectClub(CLUB_TYPES.IRON);
   }
 
   // Switch to wedge

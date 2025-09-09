@@ -27,17 +27,18 @@ export default class GameScene extends Phaser.Scene {
     }
     // Load sound effects
     this.load.audio("hit", "assets/sounds/hit.mp3");
+    this.load.audio("splash", "assets/sounds/splash.mp3");
   }
 
   create() {
-    // Set world bounds much larger for a big golf course, with extra space above for ball flight
-    this.physics.world.setBounds(0, -1000, 20000, 1650); // Extended to 20,000px wide
+    // Set world bounds for 660-yard golf hole, with extra space above for ball flight
+    this.physics.world.setBounds(0, -1000, 13200, 1650); // 660 yards = 13,200px wide
     
     // Enable gravity for realistic falling
     // this.physics.world.gravity.y = 500; // Gravity pulls objects down
     
     // Create repeating sky background across the entire course
-    this.add.tileSprite(0, 0, 20000, 600, "sky").setOrigin(0, 0);
+    this.add.tileSprite(0, 0, 13200, 600, "sky").setOrigin(0, 0);
 
     // Create terrain system with green
     this.terrain = new Terrain(this);
@@ -64,9 +65,20 @@ export default class GameScene extends Phaser.Scene {
     this.hitSound = this.sound.add("hit", { volume: 0.5 });
     this.golfBall.setHitSound(this.hitSound);
     
+    // Create and set splash sound for water hazard
+    this.splashSound = this.sound.add("splash", { volume: 0.7 });
+    this.golfBall.setSplashSound(this.splashSound);
+    
     // Set up camera switching callback
     this.golfBall.setOnBallHitCallback(() => {
       this.switchCameraToBall();
+      this.incrementShotCounter();
+    });
+    
+    // Set up water penalty callback
+    this.golfBall.setOnWaterPenaltyCallback(() => {
+      this.incrementShotCounter(); // Add penalty stroke
+      console.log('Water penalty! Adding penalty stroke.');
     });
 
     // Create club manager
@@ -80,11 +92,14 @@ export default class GameScene extends Phaser.Scene {
     this.cameras.main.startFollow(this.player.sprite);
     
     // Set camera bounds to cover the full golf course (keep camera on ground level)
-    this.cameras.main.setBounds(0, 0, 20000, 650);
+    this.cameras.main.setBounds(0, 0, 13200, 650);
     
     // Camera management state
     this.cameraFollowingBall = false;
     this.ballWasMoving = false;
+    
+    // Shot counter
+    this.shotCount = 0;
 
     // Create UI elements for club display
     this.createClubUI();
@@ -94,6 +109,12 @@ export default class GameScene extends Phaser.Scene {
     
     // Create wind UI
     this.createWindUI();
+    
+    // Create shot counter UI
+    this.createShotCounterUI();
+    
+    // Create distance to pin UI
+    this.createDistanceToPinUI();
   }
 
   createClubUI() {
@@ -148,15 +169,15 @@ export default class GameScene extends Phaser.Scene {
   }
 
   createDistanceUI() {
-    // Distance display in top-right corner
-    this.distanceText = this.add.text(this.cameras.main.width - 20, 20, '', {
+    // Distance display in top-right corner, positioned to leave room for pin distance
+    this.distanceText = this.add.text(this.cameras.main.width - 275, 20, '', {
       fontSize: '24px',
       fill: '#ffffff',
       stroke: '#000000',
       strokeThickness: 2,
       fontFamily: 'Arial'
     });
-    this.distanceText.setOrigin(1, 0); // Right-aligned
+    this.distanceText.setOrigin(0, 0); // Left-aligned to grow rightward
     this.distanceText.setScrollFactor(0); // Keep UI fixed on screen
     this.updateDistanceUI();
   }
@@ -170,13 +191,13 @@ export default class GameScene extends Phaser.Scene {
     
     if (isTracking) {
       // Show current shot distance while ball is moving
-      distanceText = `Current Shot: ${currentDistance} yds`;
+      distanceText = `${currentDistance} yds`;
     } else if (lastDistance > 0) {
       // Show last completed shot distance
-      distanceText = `Last Shot: ${lastDistance} yds`;
+      distanceText = `${lastDistance} yds`;
     } else {
       // No shots taken yet
-      distanceText = 'Distance: 0 yds';
+      distanceText = '0 yds';
     }
     
     this.distanceText.setText(distanceText);
@@ -199,6 +220,67 @@ export default class GameScene extends Phaser.Scene {
   updateWindUI() {
     const windInfo = this.windSystem.getWindInfo();
     this.windText.setText(`Wind: ${windInfo.speed} mph ${windInfo.compass}`);
+  }
+
+  createShotCounterUI() {
+    // Shot counter display in top-right corner, below wind
+    this.shotCounterText = this.add.text(this.cameras.main.width - 20, 100, '', {
+      fontSize: '20px',
+      fill: '#ffffff',
+      stroke: '#000000',
+      strokeThickness: 2,
+      fontFamily: 'Arial'
+    });
+    this.shotCounterText.setOrigin(1, 0); // Right-aligned
+    this.shotCounterText.setScrollFactor(0); // Keep UI fixed on screen
+    this.updateShotCounterUI();
+  }
+
+  updateShotCounterUI() {
+    this.shotCounterText.setText(`Shots: ${this.shotCount}`);
+  }
+
+  incrementShotCounter() {
+    this.shotCount++;
+    this.updateShotCounterUI();
+    console.log(`Shot ${this.shotCount} taken`);
+  }
+
+  resetShotCounter() {
+    this.shotCount = 0;
+    this.updateShotCounterUI();
+    console.log('Shot counter reset for new hole');
+  }
+
+  createDistanceToPinUI() {
+    // Distance to pin display on same line as shot distance, to the right
+    this.distanceToPinText = this.add.text(this.cameras.main.width - 20, 20, '', {
+      fontSize: '24px', // Match shot distance font size
+      fill: '#ffff00', // Yellow color to distinguish from other UI
+      stroke: '#000000',
+      strokeThickness: 2,
+      fontFamily: 'Arial'
+    });
+    this.distanceToPinText.setOrigin(1, 0); // Right-aligned
+    this.distanceToPinText.setScrollFactor(0); // Keep UI fixed on screen
+    this.updateDistanceToPinUI();
+  }
+
+  updateDistanceToPinUI() {
+    const ballX = this.golfBall.x;
+    const ballY = this.golfBall.y;
+    const pinPosition = this.terrain.getPinPosition();
+    
+    // Calculate distance in pixels
+    const distancePixels = Math.sqrt(
+      Math.pow(pinPosition.x - ballX, 2) + 
+      Math.pow(pinPosition.y - ballY, 2)
+    );
+    
+    // Convert to yards (20 pixels per yard)
+    const distanceYards = Math.round(distancePixels / 20);
+    
+    this.distanceToPinText.setText(`  |  Pin: ${distanceYards} yds`);
   }
 
   updatePowerMeter() {
@@ -263,6 +345,12 @@ export default class GameScene extends Phaser.Scene {
       console.log('Switched to Wedge');
     }
     
+    if (Phaser.Input.Keyboard.JustDown(keys.four)) {
+      this.clubManager.selectIron();
+      this.updateClubUI();
+      console.log('Switched to Iron');
+    }
+    
     // Handle manual camera switching
     if (Phaser.Input.Keyboard.JustDown(keys.c)) {
       if (this.cameraFollowingBall) {
@@ -270,6 +358,11 @@ export default class GameScene extends Phaser.Scene {
       } else {
         this.switchCameraToBall();
       }
+    }
+    
+    // Handle shot counter reset
+    if (Phaser.Input.Keyboard.JustDown(keys.r)) {
+      this.resetShotCounter();
     }
 
     // Update player movement and animations
@@ -301,6 +394,9 @@ export default class GameScene extends Phaser.Scene {
     this.golfBall.updateDistance(this.game.loop.delta);
     this.updateDistanceUI();
     
+    // Update distance to pin
+    this.updateDistanceToPinUI();
+    
     // Handle camera switching between player and ball
     this.updateCameraFollow();
   }
@@ -324,9 +420,14 @@ export default class GameScene extends Phaser.Scene {
   updateCameraFollow() {
     const ballIsMoving = this.golfBall.isMoving();
     const ballIsStablyStopped = this.golfBall.isStablyStopped(this.game.loop.delta);
+    const playerIsMoving = this.player.isMoving();
     
-    // Switch back to following player when ball is stably stopped
-    if (this.cameraFollowingBall && ballIsStablyStopped) {
+    // Switch back to following player as soon as they start moving
+    if (this.cameraFollowingBall && playerIsMoving) {
+      this.switchCameraToPlayer();
+    }
+    // Also switch back to following player when ball is stably stopped (fallback)
+    else if (this.cameraFollowingBall && ballIsStablyStopped) {
       this.switchCameraToPlayer();
     }
     

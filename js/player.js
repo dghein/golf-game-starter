@@ -185,6 +185,11 @@ export class Player {
     return this.isChargingPower;
   }
 
+  // Check if player is currently moving
+  isMoving() {
+    return Math.abs(this.sprite.body.velocity.x) > 0;
+  }
+
   // Show speed lines effect
   showSpeedLines(direction) {
     if (!this.speedLines) return;
