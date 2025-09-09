@@ -26,14 +26,14 @@ export default class GameScene extends Phaser.Scene {
   }
 
   create() {
-    // Set world bounds larger than screen for scrolling, with extra space above for ball flight
-    this.physics.world.setBounds(0, -1000, 5000, 1650); // Extended 1000px above screen
+    // Set world bounds much larger for a big golf course, with extra space above for ball flight
+    this.physics.world.setBounds(0, -1000, 20000, 1650); // Extended to 20,000px wide
     
     // Enable gravity for realistic falling
     // this.physics.world.gravity.y = 500; // Gravity pulls objects down
     
-    // Create repeating sky background
-    this.add.tileSprite(0, 0, 5000, 600, "sky").setOrigin(0, 0);
+    // Create repeating sky background across the entire course
+    this.add.tileSprite(0, 0, 20000, 600, "sky").setOrigin(0, 0);
 
     // Create animations
     createGolferAnimations(this);
@@ -53,11 +53,14 @@ export default class GameScene extends Phaser.Scene {
     // Set up camera to follow the player
     this.cameras.main.startFollow(this.player.sprite);
     
-    // Set camera bounds (keep camera on ground level, don't follow ball into sky)
-    this.cameras.main.setBounds(0, 0, 5000, 650);
+    // Set camera bounds to cover the full golf course (keep camera on ground level)
+    this.cameras.main.setBounds(0, 0, 20000, 650);
 
     // Create UI elements for club display
     this.createClubUI();
+    
+    // Create distance tracking UI
+    this.createDistanceUI();
   }
 
   createClubUI() {
@@ -77,31 +80,28 @@ export default class GameScene extends Phaser.Scene {
   }
 
   createPowerMeter() {
-    const meterWidth = 200;
-    const meterHeight = 20;
-    const meterX = 20;
-    const meterY = 120;
+    // Smaller power meter that will follow the player
+    const meterWidth = 100;
+    const meterHeight = 12;
     
     // Power meter background
-    this.powerMeterBg = this.add.rectangle(meterX, meterY, meterWidth, meterHeight, 0x333333);
-    this.powerMeterBg.setOrigin(0, 0);
-    this.powerMeterBg.setScrollFactor(0);
+    this.powerMeterBg = this.add.rectangle(0, 0, meterWidth, meterHeight, 0x333333);
+    this.powerMeterBg.setOrigin(0.5, 1); // Center horizontally, bottom aligned
     this.powerMeterBg.setStrokeStyle(2, 0xffffff);
     
     // Power meter fill
-    this.powerMeterFill = this.add.rectangle(meterX + 2, meterY + 2, 0, meterHeight - 4, 0x00ff00);
-    this.powerMeterFill.setOrigin(0, 0);
-    this.powerMeterFill.setScrollFactor(0);
+    this.powerMeterFill = this.add.rectangle(0, 0, 0, meterHeight - 4, 0x00ff00);
+    this.powerMeterFill.setOrigin(0, 0.5); // Left aligned, center vertically
     
-    // Power meter label
-    this.powerMeterLabel = this.add.text(meterX, meterY - 25, 'Power: Hold SPACE to charge', {
-      fontSize: '16px',
+    // Power meter label (smaller text)
+    this.powerMeterLabel = this.add.text(0, 0, '', {
+      fontSize: '12px',
       fill: '#ffffff',
       stroke: '#000000',
       strokeThickness: 1,
       fontFamily: 'Arial'
     });
-    this.powerMeterLabel.setScrollFactor(0);
+    this.powerMeterLabel.setOrigin(0.5, 1); // Center horizontally, bottom aligned
     
     // Initially hide power meter
     this.powerMeterBg.setVisible(false);
@@ -114,6 +114,41 @@ export default class GameScene extends Phaser.Scene {
     this.clubText.setText(`Club: ${clubInfo.name}\n${clubInfo.description}\nPress 1: Driver | Press 2: Putter\nHold SHIFT to run`);
   }
 
+  createDistanceUI() {
+    // Distance display in top-right corner
+    this.distanceText = this.add.text(this.cameras.main.width - 20, 20, '', {
+      fontSize: '24px',
+      fill: '#ffffff',
+      stroke: '#000000',
+      strokeThickness: 2,
+      fontFamily: 'Arial'
+    });
+    this.distanceText.setOrigin(1, 0); // Right-aligned
+    this.distanceText.setScrollFactor(0); // Keep UI fixed on screen
+    this.updateDistanceUI();
+  }
+
+  updateDistanceUI() {
+    const currentDistance = this.golfBall.getCurrentDistance();
+    const lastDistance = this.golfBall.getLastShotDistance();
+    const isTracking = this.golfBall.isTrackingDistance();
+    
+    let distanceText = '';
+    
+    if (isTracking) {
+      // Show current shot distance while ball is moving
+      distanceText = `Current Shot: ${currentDistance} yds`;
+    } else if (lastDistance > 0) {
+      // Show last completed shot distance
+      distanceText = `Last Shot: ${lastDistance} yds`;
+    } else {
+      // No shots taken yet
+      distanceText = 'Distance: 0 yds';
+    }
+    
+    this.distanceText.setText(distanceText);
+  }
+
   updatePowerMeter() {
     const isCharging = this.player.chargingPower;
     const powerLevel = this.player.getPowerLevel();
@@ -124,8 +159,18 @@ export default class GameScene extends Phaser.Scene {
     this.powerMeterLabel.setVisible(isCharging);
     
     if (isCharging) {
+      // Position power meter above the player
+      const playerX = this.player.x;
+      const playerY = this.player.y;
+      const offsetY = -60; // Distance above player
+      
+      // Update positions
+      this.powerMeterBg.setPosition(playerX, playerY + offsetY);
+      this.powerMeterFill.setPosition(playerX - 48, playerY + offsetY); // Left edge of meter
+      this.powerMeterLabel.setPosition(playerX, playerY + offsetY - 20);
+      
       // Update power meter fill width
-      const maxWidth = 196; // meterWidth - 4 (for padding)
+      const maxWidth = 96; // meterWidth - 4 (for padding)
       const currentWidth = maxWidth * powerLevel;
       this.powerMeterFill.width = currentWidth;
       
@@ -138,9 +183,9 @@ export default class GameScene extends Phaser.Scene {
       }
       this.powerMeterFill.setFillStyle(color);
       
-      // Update label with power percentage
+      // Update label with power percentage (shorter text for smaller meter)
       const powerPercent = Math.round(powerLevel * 100);
-      this.powerMeterLabel.setText(`Power: ${powerPercent}% - Release SPACE to swing!`);
+      this.powerMeterLabel.setText(`${powerPercent}%`);
     }
   }
 
@@ -173,6 +218,10 @@ export default class GameScene extends Phaser.Scene {
 
     // Apply ground friction when ball is rolling
     this.golfBall.applyGroundFriction();
+
+    // Update distance tracking
+    this.golfBall.updateDistance();
+    this.updateDistanceUI();
   }
 
 }

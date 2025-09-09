@@ -6,6 +6,17 @@ export class GolfBall {
     this.scene = scene;
     this.hitRecently = false;
     
+    // Distance tracking
+    this.startX = x;
+    this.startY = y;
+    this.currentDistance = 0;
+    this.lastShotDistance = 0;
+    this.isTracking = false;
+    
+    // Conversion: More pixels per yard for finer granularity
+    // 20 pixels per yard means 200 yards = 4000 pixels
+    this.pixelsPerYard = 20;
+    
     // Create golf ball as a simple white circle
     this.sprite = scene.add.circle(x, y, 12, 0xffffff);
     this.sprite.setStrokeStyle(2, 0x000000); // Black outline
@@ -109,6 +120,9 @@ export class GolfBall {
     
     this.sprite.body.setVelocity(launchVelocityX, launchVelocityY);
     
+    // Start distance tracking
+    this.startDistanceTracking();
+    
     const powerPercent = Math.round(powerMultiplier * 100);
     console.log(`Ball hit with ${clubProps.name} at ${powerPercent}% power! ${clubProps.canFly ? 'Flying through the air' : 'Rolling on the ground'}...`);
   }
@@ -118,6 +132,12 @@ export class GolfBall {
     this.sprite.setPosition(x, y);
     this.sprite.body.setVelocity(0, 0);
     this.hitRecently = false;
+    
+    // Reset distance tracking
+    this.startX = x;
+    this.startY = y;
+    this.currentDistance = 0;
+    this.isTracking = false;
   }
 
   // Check if ball is moving
@@ -137,5 +157,69 @@ export class GolfBall {
   // Set ball velocity
   setVelocity(x, y) {
     this.sprite.body.setVelocity(x, y);
+  }
+
+  // Start tracking distance for current shot
+  startDistanceTracking() {
+    this.startX = this.sprite.x;
+    this.startY = this.sprite.y;
+    this.currentDistance = 0;
+    this.isTracking = true;
+  }
+
+  // Update distance tracking (call this in game loop)
+  updateDistance() {
+    if (!this.isTracking) return;
+
+    // Calculate distance from starting position
+    const distanceX = this.sprite.x - this.startX;
+    const distanceY = this.sprite.y - this.startY;
+    this.currentDistance = Math.sqrt(distanceX * distanceX + distanceY * distanceY);
+
+    // Stop tracking if ball has stopped moving
+    if (!this.isMoving() && this.currentDistance > 0) {
+      this.stopDistanceTracking();
+    }
+  }
+
+  // Stop distance tracking and save final distance
+  stopDistanceTracking() {
+    if (this.isTracking) {
+      this.lastShotDistance = this.currentDistance;
+      this.isTracking = false;
+      const yards = this.pixelsToYards(this.lastShotDistance);
+      const pixels = Math.round(this.lastShotDistance);
+      console.log(`Shot completed! Distance: ${yards} yards (${pixels} pixels)`);
+    }
+  }
+
+  // Convert pixels to yards
+  pixelsToYards(pixels) {
+    return Math.round(pixels / this.pixelsPerYard);
+  }
+
+  // Get current shot distance in yards
+  getCurrentDistance() {
+    return this.pixelsToYards(this.currentDistance);
+  }
+
+  // Get last completed shot distance in yards
+  getLastShotDistance() {
+    return this.pixelsToYards(this.lastShotDistance);
+  }
+
+  // Get current shot distance in pixels (for debugging)
+  getCurrentDistancePixels() {
+    return Math.round(this.currentDistance);
+  }
+
+  // Get last shot distance in pixels (for debugging)
+  getLastShotDistancePixels() {
+    return Math.round(this.lastShotDistance);
+  }
+
+  // Check if currently tracking distance
+  isTrackingDistance() {
+    return this.isTracking;
   }
 }

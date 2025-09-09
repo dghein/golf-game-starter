@@ -10,17 +10,17 @@ export const CLUB_TYPES = {
 export const CLUB_PROPERTIES = {
   [CLUB_TYPES.DRIVER]: {
     name: 'Driver',
-    power: 1.0,
-    launchAngle: -1000, // Strong upward velocity
-    horizontalPower: 400,
+    power: 1.07, // Reduced by 1/3 (1.6 * 2/3 = 1.07)
+    launchAngle: -800, // Reduced by 1/3 (1200 * 2/3 = 800)
+    horizontalPower: 467, // Reduced by 1/3 (700 * 2/3 = 467)
     canFly: true,
     description: 'Long distance shots'
   },
   [CLUB_TYPES.PUTTER]: {
     name: 'Putter',
-    power: 1.0, // Increased from 0.3 to allow full power range
+    power: 0.8, // Reduced by 1/3 (1.2 * 2/3 = 0.8)
     launchAngle: 0, // No upward velocity - stays on ground
-    horizontalPower: 300, // Increased from 150 to give more distance
+    horizontalPower: 200, // Reduced by 1/3 (300 * 2/3 = 200)
     canFly: false,
     description: 'Precise ground shots'
   }
