@@ -3,6 +3,7 @@ import { setupWASD } from "../controls.js";
 import { GolfBall } from "../golfball.js";
 import { Player } from "../player.js";
 import { ClubManager, CLUB_TYPES } from "../clubs.js";
+import { WindSystem } from "../wind.js";
 
 export default class GameScene extends Phaser.Scene {
   constructor() {
@@ -50,6 +51,10 @@ export default class GameScene extends Phaser.Scene {
     // Create club manager
     this.clubManager = new ClubManager();
 
+    // Create wind system
+    this.windSystem = new WindSystem(this);
+    this.golfBall.setWindSystem(this.windSystem);
+
     // Set up camera to follow the player
     this.cameras.main.startFollow(this.player.sprite);
     
@@ -61,6 +66,9 @@ export default class GameScene extends Phaser.Scene {
     
     // Create distance tracking UI
     this.createDistanceUI();
+    
+    // Create wind UI
+    this.createWindUI();
   }
 
   createClubUI() {
@@ -111,7 +119,8 @@ export default class GameScene extends Phaser.Scene {
 
   updateClubUI() {
     const clubInfo = this.clubManager.getClubInfo();
-    this.clubText.setText(`Club: ${clubInfo.name}\n${clubInfo.description}\nPress 1: Driver | Press 2: Putter\nHold SHIFT to run`);
+    const backspinText = clubInfo.type === 'wedge' ? '\nHold CTRL while swinging for backspin' : '';
+    this.clubText.setText(`Club: ${clubInfo.name}\n${clubInfo.description}\nPress 1: Driver | Press 2: Putter | Press 3: Wedge\nHold SHIFT to run${backspinText}`);
   }
 
   createDistanceUI() {
@@ -147,6 +156,25 @@ export default class GameScene extends Phaser.Scene {
     }
     
     this.distanceText.setText(distanceText);
+  }
+
+  createWindUI() {
+    // Wind display in top-right corner, below distance
+    this.windText = this.add.text(this.cameras.main.width - 20, 60, '', {
+      fontSize: '20px',
+      fill: '#ffffff',
+      stroke: '#000000',
+      strokeThickness: 2,
+      fontFamily: 'Arial'
+    });
+    this.windText.setOrigin(1, 0); // Right-aligned
+    this.windText.setScrollFactor(0); // Keep UI fixed on screen
+    this.updateWindUI();
+  }
+
+  updateWindUI() {
+    const windInfo = this.windSystem.getWindInfo();
+    this.windText.setText(`Wind: ${windInfo.speed} mph ${windInfo.compass}`);
   }
 
   updatePowerMeter() {
@@ -204,6 +232,12 @@ export default class GameScene extends Phaser.Scene {
       this.updateClubUI();
       console.log('Switched to Putter');
     }
+    
+    if (Phaser.Input.Keyboard.JustDown(keys.three)) {
+      this.clubManager.selectWedge();
+      this.updateClubUI();
+      console.log('Switched to Wedge');
+    }
 
     // Update player movement and animations
     this.player.update(keys);
@@ -213,11 +247,19 @@ export default class GameScene extends Phaser.Scene {
 
     // Check if player is trying to hit the ball (only during swing animation)
     if (this.player.isSwinging()) {
-      this.golfBall.checkHit(this.player, this.clubManager);
+      this.golfBall.checkHit(this.player, this.clubManager, keys);
     }
 
-    // Apply ground friction when ball is rolling
-    this.golfBall.applyGroundFriction();
+    // Update wind system
+    this.windSystem.update(this.game.loop.delta);
+    this.updateWindUI();
+
+    // Apply wind effects to ball during flight
+    this.golfBall.applyWindEffects();
+
+    // Apply ground friction when ball is rolling (pass current club for different friction)
+    const currentClubType = this.clubManager.getCurrentClub();
+    this.golfBall.applyGroundFriction(currentClubType);
 
     // Update distance tracking
     this.golfBall.updateDistance();

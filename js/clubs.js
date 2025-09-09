@@ -4,7 +4,8 @@
 
 export const CLUB_TYPES = {
   DRIVER: 'driver',
-  PUTTER: 'putter'
+  PUTTER: 'putter',
+  WEDGE: 'wedge'
 };
 
 export const CLUB_PROPERTIES = {
@@ -23,6 +24,14 @@ export const CLUB_PROPERTIES = {
     horizontalPower: 200, // Reduced by 1/3 (300 * 2/3 = 200)
     canFly: false,
     description: 'Precise ground shots'
+  },
+  [CLUB_TYPES.WEDGE]: {
+    name: 'Wedge',
+    power: 0.9, // Increased by 1.5x (0.6 * 1.5 = 0.9)
+    launchAngle: -2700, // Increased by 1.5x (1800 * 1.5 = 2700)
+    horizontalPower: 225, // Increased by 1.5x (150 * 1.5 = 225)
+    canFly: true,
+    description: 'High arc, medium distance shots'
   }
 };
 
@@ -61,6 +70,11 @@ export class ClubManager {
   // Switch to putter
   selectPutter() {
     return this.selectClub(CLUB_TYPES.PUTTER);
+  }
+
+  // Switch to wedge
+  selectWedge() {
+    return this.selectClub(CLUB_TYPES.WEDGE);
   }
 
   // Cycle through clubs

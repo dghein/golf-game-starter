@@ -13,6 +13,13 @@ export class GolfBall {
     this.lastShotDistance = 0;
     this.isTracking = false;
     
+    // Backspin properties
+    this.hasBackspin = false;
+    this.backspinApplied = false;
+    
+    // Wind effect properties
+    this.windSystem = null; // Will be set by GameScene
+    
     // Conversion: More pixels per yard for finer granularity
     // 20 pixels per yard means 200 yards = 4000 pixels
     this.pixelsPerYard = 20;
@@ -50,15 +57,53 @@ export class GolfBall {
     return this.sprite.body;
   }
 
+  // Set wind system reference
+  setWindSystem(windSystem) {
+    this.windSystem = windSystem;
+  }
+
+  // Apply wind effects during flight
+  applyWindEffects() {
+    // Only apply wind while ball is in the air
+    if (!this.sprite.body.touching.down && this.windSystem) {
+      const windEffect = this.windSystem.getWindEffect();
+      const currentVel = this.sprite.body.velocity;
+      
+      // Apply wind force gradually (not all at once)
+      const windInfluence = 0.02; // How much wind affects the ball per frame
+      this.sprite.body.setVelocity(
+        currentVel.x + (windEffect.x * windInfluence),
+        currentVel.y + (windEffect.y * windInfluence)
+      );
+    }
+  }
+
   // Apply ground friction when ball is rolling
-  applyGroundFriction() {
+  applyGroundFriction(clubType = null) {
     // If ball is on the ground (touching bottom world bound), apply rolling friction
     if (this.sprite.body.touching.down) {
       const horizontalVel = this.sprite.body.velocity.x;
       
+      // Apply backspin effect immediately when ball hits ground
+      if (this.hasBackspin && !this.backspinApplied) {
+        // Apply strong reverse momentum for backspin effect
+        const backspinForce = -horizontalVel * 0.8; // Reverse 80% of velocity
+        this.sprite.body.setVelocityX(backspinForce);
+        this.backspinApplied = true;
+        console.log('Backspin applied! Ball rolling backwards...');
+        return; // Skip normal friction on first backspin application
+      }
+      
       // Apply rolling friction only to horizontal movement
       if (Math.abs(horizontalVel) > 0) {
-        const friction = 0.95; // Rolling friction
+        // Different friction based on club type
+        let friction = 0.95; // Default rolling friction
+        if (clubType === 'wedge') {
+          friction = 0.85; // Much higher friction for wedge shots (less roll)
+        } else if (clubType === 'driver') {
+          friction = 0.75; // Much higher friction for driver shots (very little roll)
+        }
+        
         this.sprite.body.setVelocityX(horizontalVel * friction);
         
         // Stop the ball if it's moving very slowly (under 15 pixels/second)
@@ -70,7 +115,7 @@ export class GolfBall {
   }
 
   // Check if player can hit the ball and handle the hit
-  checkHit(player, clubManager = null) {
+  checkHit(player, clubManager = null, keys = null) {
     // Calculate distance between player and ball
     const distance = Phaser.Math.Distance.Between(
       player.x, player.y,
@@ -82,7 +127,12 @@ export class GolfBall {
       // Only hit the ball if it hasn't been hit recently
       if (!this.hitRecently) {
         const powerMultiplier = player.getCurrentPower();
-        this.hit(player, clubManager, powerMultiplier);
+        
+        // Check for backspin (Ctrl + Wedge only)
+        const isBackspin = keys && keys.ctrl.isDown && 
+                          clubManager && clubManager.getCurrentClub() === 'wedge';
+        
+        this.hit(player, clubManager, powerMultiplier, isBackspin);
         this.hitRecently = true;
         
         // Reset the hit flag after a short delay
@@ -94,7 +144,7 @@ export class GolfBall {
   }
 
   // Hit the ball with realistic golf physics
-  hit(player, clubManager = null, powerMultiplier = 1.0) {
+  hit(player, clubManager = null, powerMultiplier = 1.0, hasBackspin = false) {
     // Calculate hit direction based on player facing direction
     const hitDirection = player.flipX ? -1 : 1;
     
@@ -120,11 +170,23 @@ export class GolfBall {
     
     this.sprite.body.setVelocity(launchVelocityX, launchVelocityY);
     
+    // Set backspin properties
+    this.hasBackspin = hasBackspin;
+    this.backspinApplied = false;
+    
+    // Reduce bounce for backspin shots
+    if (hasBackspin) {
+      this.sprite.body.setBounce(0.2); // Much less bouncy for backspin shots
+    } else {
+      this.sprite.body.setBounce(0.7); // Normal bounce for regular shots
+    }
+    
     // Start distance tracking
     this.startDistanceTracking();
     
     const powerPercent = Math.round(powerMultiplier * 100);
-    console.log(`Ball hit with ${clubProps.name} at ${powerPercent}% power! ${clubProps.canFly ? 'Flying through the air' : 'Rolling on the ground'}...`);
+    const backspinText = hasBackspin ? ' with BACKSPIN' : '';
+    console.log(`Ball hit with ${clubProps.name} at ${powerPercent}% power${backspinText}! ${clubProps.canFly ? 'Flying through the air' : 'Rolling on the ground'}...`);
   }
 
   // Reset ball to a specific position
@@ -138,6 +200,11 @@ export class GolfBall {
     this.startY = y;
     this.currentDistance = 0;
     this.isTracking = false;
+    
+    // Reset backspin state and bounce
+    this.hasBackspin = false;
+    this.backspinApplied = false;
+    this.sprite.body.setBounce(0.7); // Reset to normal bounce
   }
 
   // Check if ball is moving
