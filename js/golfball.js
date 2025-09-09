@@ -20,6 +20,13 @@ export class GolfBall {
     // Wind effect properties
     this.windSystem = null; // Will be set by GameScene
     
+    // Terrain properties
+    this.terrain = null; // Will be set by GameScene
+    this.groundRadius = 12; // Ball radius for ground collision
+    
+    // Sound properties
+    this.hitSound = null; // Will be set by GameScene
+    
     // Conversion: More pixels per yard for finer granularity
     // 20 pixels per yard means 200 yards = 4000 pixels
     this.pixelsPerYard = 20;
@@ -34,10 +41,10 @@ export class GolfBall {
     
     // Set physics properties for realistic golf ball behavior
     this.sprite.body.setBounce(0.7); // Good bounce for realistic behavior
-    this.sprite.body.setDrag(30); // Air resistance (less drag for better flight)
-    this.sprite.body.setMaxVelocity(600, 900); // Limit max speed
+    this.sprite.body.setDrag(35); // Reduced drag slightly for more distance
+    this.sprite.body.setMaxVelocity(1400, 900); // Increased max velocity slightly
     this.sprite.body.setFriction(0.98); // Ground friction for rolling
-    this.sprite.body.setGravityY(500); // Enable gravity for the ball only
+    this.sprite.body.setGravityY(520); // Reduced gravity slightly for better flight
     
     // Enable collision with world bounds
     this.sprite.body.setCollideWorldBounds(true);
@@ -62,15 +69,29 @@ export class GolfBall {
     this.windSystem = windSystem;
   }
 
+  // Set terrain system reference
+  setTerrain(terrain) {
+    this.terrain = terrain;
+  }
+
+  // Set hit sound reference
+  setHitSound(hitSound) {
+    this.hitSound = hitSound;
+  }
+
   // Apply wind effects during flight
   applyWindEffects() {
     // Only apply wind while ball is in the air
-    if (!this.sprite.body.touching.down && this.windSystem) {
+    if (!this.isOnTerrain() && this.windSystem) {
       const windEffect = this.windSystem.getWindEffect();
       const currentVel = this.sprite.body.velocity;
       
-      // Apply wind force gradually (not all at once)
-      const windInfluence = 0.02; // How much wind affects the ball per frame
+      // Apply moderate wind influence - reduced to prevent excessive distances
+      // Wind effect is stronger when ball is higher/moving faster
+      const ballSpeed = Math.sqrt(currentVel.x * currentVel.x + currentVel.y * currentVel.y);
+      const speedFactor = Math.min(ballSpeed / 500, 1.2); // Reduced speed factor
+      const windInfluence = 0.015 * speedFactor; // Much reduced base influence
+      
       this.sprite.body.setVelocity(
         currentVel.x + (windEffect.x * windInfluence),
         currentVel.y + (windEffect.y * windInfluence)
@@ -80,8 +101,10 @@ export class GolfBall {
 
   // Apply ground friction when ball is rolling
   applyGroundFriction(clubType = null) {
-    // If ball is on the ground (touching bottom world bound), apply rolling friction
-    if (this.sprite.body.touching.down) {
+    // Check if ball is on terrain
+    const isOnGround = this.isOnTerrain();
+    
+    if (isOnGround) {
       const horizontalVel = this.sprite.body.velocity.x;
       
       // Apply backspin effect immediately when ball hits ground
@@ -96,12 +119,17 @@ export class GolfBall {
       
       // Apply rolling friction only to horizontal movement
       if (Math.abs(horizontalVel) > 0) {
-        // Different friction based on club type
+        // Different friction based on club type and terrain
         let friction = 0.95; // Default rolling friction
         if (clubType === 'wedge') {
-          friction = 0.85; // Much higher friction for wedge shots (less roll)
+          friction = 0.75; // High friction for wedge shots (minimal roll - sticks where it lands)
         } else if (clubType === 'driver') {
-          friction = 0.75; // Much higher friction for driver shots (very little roll)
+          friction = 0.98; // Low friction for driver shots (lots of roll for distance)
+        }
+        
+        // Apply additional friction if on green (putting surface)
+        if (this.terrain && this.terrain.isBallOnGreen(this.sprite.x)) {
+          friction *= 0.9; // Extra friction on the green
         }
         
         this.sprite.body.setVelocityX(horizontalVel * friction);
@@ -164,11 +192,24 @@ export class GolfBall {
     // Apply power multiplier from charging system
     const totalPowerMultiplier = clubProps.power * powerMultiplier;
     
-    // Calculate launch velocities based on club and charged power
-    const launchVelocityX = hitDirection * clubProps.horizontalPower * totalPowerMultiplier;
-    const launchVelocityY = clubProps.canFly ? clubProps.launchAngle * totalPowerMultiplier : 0;
+    // Add realistic shot variation (±5-10% depending on club)
+    const variationRange = clubProps.name === 'Driver' ? 0.08 : // ±8% for driver
+                          clubProps.name === 'Wedge' ? 0.05 :   // ±5% for wedge (more precise)
+                          0.06; // ±6% for putter
+    
+    const powerVariation = 1 + (Math.random() - 0.5) * 2 * variationRange;
+    const angleVariation = 1 + (Math.random() - 0.5) * 2 * (variationRange * 0.5); // Less angle variation
+    
+    // Calculate launch velocities with variation
+    const launchVelocityX = hitDirection * clubProps.horizontalPower * totalPowerMultiplier * powerVariation;
+    const launchVelocityY = clubProps.canFly ? clubProps.launchAngle * totalPowerMultiplier * angleVariation : 0;
     
     this.sprite.body.setVelocity(launchVelocityX, launchVelocityY);
+    
+    // Play hit sound effect
+    if (this.hitSound) {
+      this.hitSound.play();
+    }
     
     // Set backspin properties
     this.hasBackspin = hasBackspin;
@@ -190,7 +231,14 @@ export class GolfBall {
   }
 
   // Reset ball to a specific position
-  reset(x = 200, y = 630) {
+  reset(x = 200, y = null) {
+    // If no y provided, use terrain height
+    if (y === null && this.terrain) {
+      y = this.terrain.getHeightAtX(x) - this.groundRadius;
+    } else if (y === null) {
+      y = 630; // Fallback to original default
+    }
+    
     this.sprite.setPosition(x, y);
     this.sprite.body.setVelocity(0, 0);
     this.hitRecently = false;
@@ -288,5 +336,60 @@ export class GolfBall {
   // Check if currently tracking distance
   isTrackingDistance() {
     return this.isTracking;
+  }
+
+  // Check if ball is on terrain
+  isOnTerrain() {
+    if (!this.terrain) return false;
+    
+    const ballBottom = this.sprite.y + this.groundRadius;
+    const terrainHeight = this.terrain.getHeightAtX(this.sprite.x);
+    
+    return ballBottom >= terrainHeight;
+  }
+
+  // Update ball position to interact with terrain
+  updateTerrainPhysics() {
+    if (!this.terrain) return;
+
+    const ballBottom = this.sprite.y + this.groundRadius;
+    const terrainHeight = this.terrain.getHeightAtX(this.sprite.x);
+    const currentVel = this.sprite.body.velocity;
+    
+    // Only apply terrain physics if ball is significantly below terrain
+    // and not flying upward (to allow proper ball flight)
+    if (ballBottom > terrainHeight + 8 && currentVel.y >= 0) {
+      // Much more gentle positioning - only for major height differences
+      const targetY = terrainHeight - this.groundRadius;
+      const currentY = this.sprite.y;
+      const yDifference = targetY - currentY;
+      
+      // Only adjust for very significant differences to eliminate vibration
+      if (Math.abs(yDifference) > 10) {
+        // Very gentle interpolation
+        const adjustmentSpeed = 0.2;
+        const newY = currentY + yDifference * adjustmentSpeed;
+        this.sprite.setY(newY);
+        
+        // Only apply bounce if ball is falling very fast
+        if (currentVel.y > 200) {
+          // Very gentle bounce
+          this.sprite.body.setVelocityY(currentVel.y * -0.3);
+        } else {
+          // Ball is rolling - just stop vertical movement gently
+          this.sprite.body.setVelocityY(currentVel.y * 0.8);
+        }
+      }
+    }
+    
+    // Completely separate, very gentle slope influence system
+    if (Math.abs(currentVel.x) < 200 && Math.abs(currentVel.x) > 5) {
+      const slope = this.terrain.getSlopeAtX(this.sprite.x);
+      if (Math.abs(slope) > 0.02) {
+        // Very minimal slope influence
+        const slopeForce = slope * 8;
+        this.sprite.body.setVelocityX(currentVel.x + slopeForce);
+      }
+    }
   }
 }

@@ -15,12 +15,17 @@ export class Player {
     this.maxPower = 2.0; // Maximum power (200%)
     this.chargeTime = 2000; // Time in ms to reach max power
     this.speedLines = null; // Will hold speed lines effect
+    this.terrain = null; // Reference to terrain system
+    this.groundOffset = 60; // Distance above ground to maintain (adjusted for proper positioning)
     
     // Create player sprite
     this.sprite = scene.physics.add.sprite(x, y, "golfer_walking_0");
     
     // Keep player within world bounds (prevents falling off the world)
     this.sprite.setCollideWorldBounds(true);
+    
+    // Disable gravity for player since they follow terrain
+    this.sprite.body.setGravityY(-100); // Counteract world gravity
     
     // Listen for animation complete events
     this.sprite.on('animationcomplete', (anim) => {
@@ -71,8 +76,16 @@ export class Player {
     return this.sprite.anims;
   }
 
+  // Set terrain reference for height following
+  setTerrain(terrain) {
+    this.terrain = terrain;
+  }
+
   // Update player movement and animations based on input
   update(keys) {
+    // Update terrain following first
+    this.updateTerrainPosition();
+    
     // Don't allow movement or other actions while swinging
     if (this.isSwingInProgress) {
       this.sprite.setVelocityX(0);
@@ -268,5 +281,25 @@ export class Player {
   isMoving() {
     const vel = this.sprite.body.velocity;
     return Math.abs(vel.x) > 1 || Math.abs(vel.y) > 1;
+  }
+
+  // Update player position to follow terrain
+  updateTerrainPosition() {
+    if (!this.terrain) return;
+
+    const currentX = this.sprite.x;
+    const terrainHeight = this.terrain.getHeightAtX(currentX);
+    const targetY = terrainHeight - this.groundOffset;
+    const currentY = this.sprite.y;
+
+    // Only adjust if difference is significant to prevent vibrating
+    if (Math.abs(targetY - currentY) > 3) {
+      // Use smooth interpolation instead of immediate positioning
+      const adjustmentSpeed = 0.3;
+      const newY = currentY + (targetY - currentY) * adjustmentSpeed;
+      this.sprite.setY(newY);
+      // Stop any vertical velocity to prevent bouncing
+      this.sprite.body.setVelocityY(0);
+    }
   }
 }

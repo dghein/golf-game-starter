@@ -4,6 +4,7 @@ import { GolfBall } from "../golfball.js";
 import { Player } from "../player.js";
 import { ClubManager, CLUB_TYPES } from "../clubs.js";
 import { WindSystem } from "../wind.js";
+import { Terrain } from "../terrain.js";
 
 export default class GameScene extends Phaser.Scene {
   constructor() {
@@ -24,6 +25,8 @@ export default class GameScene extends Phaser.Scene {
         `assets/golfer/golfer_swing_${i}.png`
       );
     }
+    // Load sound effects
+    this.load.audio("hit", "assets/sounds/hit.mp3");
   }
 
   create() {
@@ -36,17 +39,30 @@ export default class GameScene extends Phaser.Scene {
     // Create repeating sky background across the entire course
     this.add.tileSprite(0, 0, 20000, 600, "sky").setOrigin(0, 0);
 
+    // Create terrain system with green
+    this.terrain = new Terrain(this);
+
     // Create animations
     createGolferAnimations(this);
 
     // Setup WASD controls
     this.keys = setupWASD(this);
 
-    // Create player
-    this.player = new Player(this);
+    // Create player at terrain height
+    const startX = 100;
+    const startY = this.terrain.getHeightAtX(startX) - 30; // 30px above terrain
+    this.player = new Player(this, startX, startY);
+    this.player.setTerrain(this.terrain);
 
-    // Create golf ball
-    this.golfBall = new GolfBall(this);
+    // Create golf ball at terrain height
+    const ballStartX = 200;
+    const ballStartY = this.terrain.getHeightAtX(ballStartX) - 15; // 15px above terrain
+    this.golfBall = new GolfBall(this, ballStartX, ballStartY);
+    this.golfBall.setTerrain(this.terrain);
+
+    // Create and set hit sound for the golf ball
+    this.hitSound = this.sound.add("hit", { volume: 0.5 });
+    this.golfBall.setHitSound(this.hitSound);
 
     // Create club manager
     this.clubManager = new ClubManager();
@@ -253,6 +269,9 @@ export default class GameScene extends Phaser.Scene {
     // Update wind system
     this.windSystem.update(this.game.loop.delta);
     this.updateWindUI();
+
+    // Update terrain physics for ball
+    this.golfBall.updateTerrainPhysics();
 
     // Apply wind effects to ball during flight
     this.golfBall.applyWindEffects();

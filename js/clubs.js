@@ -11,9 +11,9 @@ export const CLUB_TYPES = {
 export const CLUB_PROPERTIES = {
   [CLUB_TYPES.DRIVER]: {
     name: 'Driver',
-    power: 1.07, // Reduced by 1/3 (1.6 * 2/3 = 1.07)
-    launchAngle: -800, // Reduced by 1/3 (1200 * 2/3 = 800)
-    horizontalPower: 467, // Reduced by 1/3 (700 * 2/3 = 467)
+    power: 0.7, // Further reduced for shorter distances
+    launchAngle: -1200, // Keeping the higher launch angle for better trajectory
+    horizontalPower: 650, // Keeping horizontal power the same
     canFly: true,
     description: 'Long distance shots'
   },

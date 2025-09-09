@@ -57,7 +57,7 @@ export class WindSystem {
     const windForceY = Math.sin(windRadians) * this.windSpeed;
     
     // Convert mph to pixels/frame (approximate conversion for game)
-    const windMultiplier = 2; // Adjust this to make wind more/less effective
+    const windMultiplier = 3.5; // Increased for more realistic wind impact
     
     return {
       x: windForceX * windMultiplier,
