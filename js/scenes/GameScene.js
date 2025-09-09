@@ -63,6 +63,11 @@ export default class GameScene extends Phaser.Scene {
     // Create and set hit sound for the golf ball
     this.hitSound = this.sound.add("hit", { volume: 0.5 });
     this.golfBall.setHitSound(this.hitSound);
+    
+    // Set up camera switching callback
+    this.golfBall.setOnBallHitCallback(() => {
+      this.switchCameraToBall();
+    });
 
     // Create club manager
     this.clubManager = new ClubManager();
@@ -71,11 +76,15 @@ export default class GameScene extends Phaser.Scene {
     this.windSystem = new WindSystem(this);
     this.golfBall.setWindSystem(this.windSystem);
 
-    // Set up camera to follow the player
+    // Set up camera to follow the player initially
     this.cameras.main.startFollow(this.player.sprite);
     
     // Set camera bounds to cover the full golf course (keep camera on ground level)
     this.cameras.main.setBounds(0, 0, 20000, 650);
+    
+    // Camera management state
+    this.cameraFollowingBall = false;
+    this.ballWasMoving = false;
 
     // Create UI elements for club display
     this.createClubUI();
@@ -135,8 +144,7 @@ export default class GameScene extends Phaser.Scene {
 
   updateClubUI() {
     const clubInfo = this.clubManager.getClubInfo();
-    const backspinText = clubInfo.type === 'wedge' ? '\nHold CTRL while swinging for backspin' : '';
-    this.clubText.setText(`Club: ${clubInfo.name}\n${clubInfo.description}\nPress 1: Driver | Press 2: Putter | Press 3: Wedge\nHold SHIFT to run${backspinText}`);
+    this.clubText.setText(`Club: ${clubInfo.name}\n${clubInfo.description}`);
   }
 
   createDistanceUI() {
@@ -254,6 +262,15 @@ export default class GameScene extends Phaser.Scene {
       this.updateClubUI();
       console.log('Switched to Wedge');
     }
+    
+    // Handle manual camera switching
+    if (Phaser.Input.Keyboard.JustDown(keys.c)) {
+      if (this.cameraFollowingBall) {
+        this.switchCameraToPlayer();
+      } else {
+        this.switchCameraToBall();
+      }
+    }
 
     // Update player movement and animations
     this.player.update(keys);
@@ -281,8 +298,40 @@ export default class GameScene extends Phaser.Scene {
     this.golfBall.applyGroundFriction(currentClubType);
 
     // Update distance tracking
-    this.golfBall.updateDistance();
+    this.golfBall.updateDistance(this.game.loop.delta);
     this.updateDistanceUI();
+    
+    // Handle camera switching between player and ball
+    this.updateCameraFollow();
+  }
+  
+  switchCameraToBall() {
+    if (!this.cameraFollowingBall) {
+      this.cameras.main.startFollow(this.golfBall.sprite);
+      this.cameraFollowingBall = true;
+      console.log('Camera switched to following ball');
+    }
+  }
+  
+  switchCameraToPlayer() {
+    if (this.cameraFollowingBall) {
+      this.cameras.main.startFollow(this.player.sprite);
+      this.cameraFollowingBall = false;
+      console.log('Camera switched back to following player');
+    }
+  }
+  
+  updateCameraFollow() {
+    const ballIsMoving = this.golfBall.isMoving();
+    const ballIsStablyStopped = this.golfBall.isStablyStopped(this.game.loop.delta);
+    
+    // Switch back to following player when ball is stably stopped
+    if (this.cameraFollowingBall && ballIsStablyStopped) {
+      this.switchCameraToPlayer();
+    }
+    
+    // Track ball movement state for next frame
+    this.ballWasMoving = ballIsMoving;
   }
 
 }

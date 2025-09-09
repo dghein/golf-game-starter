@@ -127,11 +127,8 @@ export class Terrain {
         const progress = (x - leftSlopeStart) / this.greenSlopeWidth;
         elevationMultiplier = this.smoothStep(progress);
       } else if (x >= this.greenStartX && x <= this.greenEndX) {
-        // On the green - create a flat surface with minimal variation
-        // Add very slight undulation to prevent completely flat (boring) putting
-        const greenProgress = (x - this.greenStartX) / this.greenWidth;
-        const subtleUndulation = Math.sin(greenProgress * Math.PI * 2) * 0.05; // Very subtle wave
-        elevationMultiplier = 1.0 + subtleUndulation;
+        // On the green - completely flat surface for no ball vibration
+        elevationMultiplier = 1.0; // Perfectly flat, no undulation
       } else if (x > this.greenEndX && x <= rightSlopeEnd) {
         // Right slope - gradual descent from green
         const progress = 1 - ((x - this.greenEndX) / this.greenSlopeWidth);
@@ -314,6 +311,11 @@ export class Terrain {
 
   // Get terrain slope at a specific x coordinate (for ball physics)
   getSlopeAtX(x) {
+    // Green area always has zero slope for stability
+    if (this.isInGreenArea(x)) {
+      return 0;
+    }
+    
     const segmentWidth = this.width / this.segments;
     const index = Math.floor(x / segmentWidth);
     

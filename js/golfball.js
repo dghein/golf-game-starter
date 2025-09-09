@@ -13,6 +13,16 @@ export class GolfBall {
     this.lastShotDistance = 0;
     this.isTracking = false;
     
+    // Stable stopping detection
+    this.stableStopTimer = 0;
+    this.stableStopThreshold = 1000; // 1 second of stability required
+    this.lastPosition = { x: x, y: y };
+    this.positionStableCount = 0;
+    
+    // Ball stabilization
+    this.isStabilized = false;
+    this.stabilizedPosition = { x: x, y: y };
+    
     // Backspin properties
     this.hasBackspin = false;
     this.backspinApplied = false;
@@ -26,6 +36,9 @@ export class GolfBall {
     
     // Sound properties
     this.hitSound = null; // Will be set by GameScene
+    
+    // Camera callback properties
+    this.onBallHitCallback = null; // Will be set by GameScene
     
     // Conversion: More pixels per yard for finer granularity
     // 20 pixels per yard means 200 yards = 4000 pixels
@@ -41,10 +54,10 @@ export class GolfBall {
     
     // Set physics properties for realistic golf ball behavior
     this.sprite.body.setBounce(0.7); // Good bounce for realistic behavior
-    this.sprite.body.setDrag(35); // Reduced drag slightly for more distance
-    this.sprite.body.setMaxVelocity(1400, 900); // Increased max velocity slightly
+    this.sprite.body.setDrag(33); // Slightly reduced drag for better distance
+    this.sprite.body.setMaxVelocity(1500, 950); // Moderate increase in max velocity
     this.sprite.body.setFriction(0.98); // Ground friction for rolling
-    this.sprite.body.setGravityY(520); // Reduced gravity slightly for better flight
+    this.sprite.body.setGravityY(500); // Slightly reduced gravity for better flight
     
     // Enable collision with world bounds
     this.sprite.body.setCollideWorldBounds(true);
@@ -79,8 +92,18 @@ export class GolfBall {
     this.hitSound = hitSound;
   }
 
+  // Set callback for when ball gets hit (for camera switching)
+  setOnBallHitCallback(callback) {
+    this.onBallHitCallback = callback;
+  }
+
   // Apply wind effects during flight
   applyWindEffects() {
+    // Don't apply wind to stabilized balls
+    if (this.isStabilized) {
+      return;
+    }
+    
     // Only apply wind while ball is in the air
     if (!this.isOnTerrain() && this.windSystem) {
       const windEffect = this.windSystem.getWindEffect();
@@ -101,6 +124,11 @@ export class GolfBall {
 
   // Apply ground friction when ball is rolling
   applyGroundFriction(clubType = null) {
+    // Don't apply friction to stabilized balls
+    if (this.isStabilized) {
+      return;
+    }
+    
     // Check if ball is on terrain
     const isOnGround = this.isOnTerrain();
     
@@ -119,23 +147,34 @@ export class GolfBall {
       
       // Apply rolling friction only to horizontal movement
       if (Math.abs(horizontalVel) > 0) {
-        // Different friction based on club type and terrain
-        let friction = 0.95; // Default rolling friction
+        // Different friction based on club type and terrain - much lower overall
+        let friction = 0.985; // Much lower default friction for better rolling
         if (clubType === 'wedge') {
-          friction = 0.75; // High friction for wedge shots (minimal roll - sticks where it lands)
+          friction = 0.92; // Reduced wedge friction (still higher than others but more reasonable)
         } else if (clubType === 'driver') {
-          friction = 0.98; // Low friction for driver shots (lots of roll for distance)
+          friction = 0.975; // Moderate friction for driver shots (realistic roll distance)
+        } else if (clubType === 'putter') {
+          friction = 0.999; // Minimal friction for putter shots (maximum rolling distance)
         }
         
         // Apply additional friction if on green (putting surface)
         if (this.terrain && this.terrain.isBallOnGreen(this.sprite.x)) {
-          friction *= 0.9; // Extra friction on the green
+          friction *= 0.95; // Slightly more friction on the green (reduced penalty)
         }
         
         this.sprite.body.setVelocityX(horizontalVel * friction);
         
-        // Stop the ball if it's moving very slowly (under 15 pixels/second)
-        if (Math.abs(horizontalVel) < 15) {
+        // Stop the ball if it's moving very slowly - lower thresholds for better rolling
+        let stopThreshold = 8; // Much lower default threshold for better rolling
+        if (clubType === 'driver') {
+          stopThreshold = 10; // Moderate threshold for driver (realistic rolling distance)
+        } else if (clubType === 'wedge') {
+          stopThreshold = 12; // Higher threshold for wedge (stops sooner but still reasonable)
+        } else if (clubType === 'putter') {
+          stopThreshold = 2; // Minimum threshold for putter (allows maximum rolling distance)
+        }
+        
+        if (Math.abs(horizontalVel) < stopThreshold) {
           this.sprite.body.setVelocityX(0);
         }
       }
@@ -204,11 +243,19 @@ export class GolfBall {
     const launchVelocityX = hitDirection * clubProps.horizontalPower * totalPowerMultiplier * powerVariation;
     const launchVelocityY = clubProps.canFly ? clubProps.launchAngle * totalPowerMultiplier * angleVariation : 0;
     
+    // Unstabilize the ball before applying new velocity
+    this.unstabilizeBall();
+    
     this.sprite.body.setVelocity(launchVelocityX, launchVelocityY);
     
     // Play hit sound effect
     if (this.hitSound) {
       this.hitSound.play();
+    }
+    
+    // Trigger camera switch callback
+    if (this.onBallHitCallback) {
+      this.onBallHitCallback();
     }
     
     // Set backspin properties
@@ -249,16 +296,86 @@ export class GolfBall {
     this.currentDistance = 0;
     this.isTracking = false;
     
+    // Reset stable stop detection
+    this.stableStopTimer = 0;
+    this.positionStableCount = 0;
+    this.lastPosition = { x: x, y: y };
+    
+    // Reset stabilization
+    this.unstabilizeBall();
+    
     // Reset backspin state and bounce
     this.hasBackspin = false;
     this.backspinApplied = false;
     this.sprite.body.setBounce(0.7); // Reset to normal bounce
   }
 
-  // Check if ball is moving
+  // Check if ball is moving (original method for backward compatibility)
   isMoving() {
     const vel = this.sprite.body.velocity;
     return Math.abs(vel.x) > 1 || Math.abs(vel.y) > 1;
+  }
+  
+  // More stable method to check if ball has truly stopped
+  isStablyStopped(deltaTime) {
+    const currentPos = { x: this.sprite.x, y: this.sprite.y };
+    const vel = this.sprite.body.velocity;
+    
+    // Check if velocity is very low
+    const isVelocityLow = Math.abs(vel.x) < 5 && Math.abs(vel.y) < 5;
+    
+    // Check if position hasn't changed much
+    const positionDelta = Math.sqrt(
+      Math.pow(currentPos.x - this.lastPosition.x, 2) + 
+      Math.pow(currentPos.y - this.lastPosition.y, 2)
+    );
+    const isPositionStable = positionDelta < 3; // Less than 3 pixels movement
+    
+    if (isVelocityLow && isPositionStable) {
+      this.stableStopTimer += deltaTime;
+      this.positionStableCount++;
+    } else {
+      this.stableStopTimer = 0;
+      this.positionStableCount = 0;
+    }
+    
+    // Update last position
+    this.lastPosition = { x: currentPos.x, y: currentPos.y };
+    
+    // Ball is considered stably stopped after being stable for the threshold time
+    const isStablyStopped = this.stableStopTimer >= this.stableStopThreshold && this.positionStableCount > 30;
+    
+    // Stabilize the ball when it's determined to be stopped
+    if (isStablyStopped && !this.isStabilized) {
+      this.stabilizeBall();
+      console.log('Ball stabilized - no more vibration');
+    }
+    
+    return isStablyStopped;
+  }
+  
+  // Stabilize the ball to stop all vibration
+  stabilizeBall() {
+    this.isStabilized = true;
+    this.stabilizedPosition = { x: this.sprite.x, y: this.sprite.y };
+    
+    // Completely stop all movement
+    this.sprite.body.setVelocity(0, 0);
+    
+    // Disable physics temporarily to prevent any forces from affecting the ball
+    this.sprite.body.setImmovable(true);
+    
+    // Fix the ball at its current position
+    this.sprite.setPosition(this.stabilizedPosition.x, this.stabilizedPosition.y);
+  }
+  
+  // Unstabilize the ball (when it gets hit again)
+  unstabilizeBall() {
+    if (this.isStabilized) {
+      this.isStabilized = false;
+      this.sprite.body.setImmovable(false);
+      console.log('Ball unstabilized - physics re-enabled');
+    }
   }
 
   // Get ball velocity
@@ -280,10 +397,18 @@ export class GolfBall {
     this.startY = this.sprite.y;
     this.currentDistance = 0;
     this.isTracking = true;
+    
+    // Reset stable stop detection
+    this.stableStopTimer = 0;
+    this.positionStableCount = 0;
+    this.lastPosition = { x: this.sprite.x, y: this.sprite.y };
+    
+    // Reset stabilization
+    this.unstabilizeBall();
   }
 
   // Update distance tracking (call this in game loop)
-  updateDistance() {
+  updateDistance(deltaTime = 16) {
     if (!this.isTracking) return;
 
     // Calculate distance from starting position
@@ -291,8 +416,8 @@ export class GolfBall {
     const distanceY = this.sprite.y - this.startY;
     this.currentDistance = Math.sqrt(distanceX * distanceX + distanceY * distanceY);
 
-    // Stop tracking if ball has stopped moving
-    if (!this.isMoving() && this.currentDistance > 0) {
+    // Stop tracking if ball has stably stopped
+    if (this.isStablyStopped(deltaTime) && this.currentDistance > 0) {
       this.stopDistanceTracking();
     }
   }
@@ -351,6 +476,14 @@ export class GolfBall {
   // Update ball position to interact with terrain
   updateTerrainPhysics() {
     if (!this.terrain) return;
+    
+    // Don't apply terrain physics to stabilized balls
+    if (this.isStabilized) {
+      // Keep the ball exactly where it was stabilized
+      this.sprite.setPosition(this.stabilizedPosition.x, this.stabilizedPosition.y);
+      this.sprite.body.setVelocity(0, 0);
+      return;
+    }
 
     const ballBottom = this.sprite.y + this.groundRadius;
     const terrainHeight = this.terrain.getHeightAtX(this.sprite.x);

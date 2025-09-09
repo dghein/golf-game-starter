@@ -11,19 +11,19 @@ export const CLUB_TYPES = {
 export const CLUB_PROPERTIES = {
   [CLUB_TYPES.DRIVER]: {
     name: 'Driver',
-    power: 0.7, // Further reduced for shorter distances
-    launchAngle: -1200, // Keeping the higher launch angle for better trajectory
-    horizontalPower: 650, // Keeping horizontal power the same
+    power: 0.9, // Moderate increase for better distance without going overboard
+    launchAngle: -900, // Slightly higher arc for good distance
+    horizontalPower: 750, // Reasonable increase from original 650
     canFly: true,
     description: 'Long distance shots'
   },
   [CLUB_TYPES.PUTTER]: {
     name: 'Putter',
-    power: 0.8, // Reduced by 1/3 (1.2 * 2/3 = 0.8)
+    power: 2.5, // Maximum power for excellent putting distance
     launchAngle: 0, // No upward velocity - stays on ground
-    horizontalPower: 200, // Reduced by 1/3 (300 * 2/3 = 200)
+    horizontalPower: 800, // Very high horizontal power for maximum rolling
     canFly: false,
-    description: 'Precise ground shots'
+    description: 'Maximum rolling distance'
   },
   [CLUB_TYPES.WEDGE]: {
     name: 'Wedge',
