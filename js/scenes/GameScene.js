@@ -111,7 +111,7 @@ export default class GameScene extends Phaser.Scene {
 
   updateClubUI() {
     const clubInfo = this.clubManager.getClubInfo();
-    this.clubText.setText(`Club: ${clubInfo.name}\n${clubInfo.description}\nPress 1: Driver | Press 2: Putter`);
+    this.clubText.setText(`Club: ${clubInfo.name}\n${clubInfo.description}\nPress 1: Driver | Press 2: Putter\nHold SHIFT to run`);
   }
 
   updatePowerMeter() {

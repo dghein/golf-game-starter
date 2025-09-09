@@ -7,5 +7,6 @@ export function setupWASD(scene) {
     space: Phaser.Input.Keyboard.KeyCodes.SPACE,
     one: Phaser.Input.Keyboard.KeyCodes.ONE,
     two: Phaser.Input.Keyboard.KeyCodes.TWO,
+    shift: Phaser.Input.Keyboard.KeyCodes.SHIFT,
   });
 }

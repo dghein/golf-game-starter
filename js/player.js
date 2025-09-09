@@ -4,7 +4,9 @@
 export class Player {
   constructor(scene, x = 100, y = 630) {
     this.scene = scene;
-    this.speed = 160;
+    this.walkSpeed = 160;
+    this.runSpeed = 480; // 3x walking speed
+    this.isRunning = false;
     this.isSwingInProgress = false;
     this.isChargingPower = false;
     this.powerChargeStartTime = 0;
@@ -12,6 +14,7 @@ export class Player {
     this.minPower = 0.2; // Minimum power (20%)
     this.maxPower = 2.0; // Maximum power (200%)
     this.chargeTime = 2000; // Time in ms to reach max power
+    this.speedLines = null; // Will hold speed lines effect
     
     // Create player sprite
     this.sprite = scene.physics.add.sprite(x, y, "golfer_walking_0");
@@ -25,6 +28,23 @@ export class Player {
         this.isSwingInProgress = false;
       }
     });
+
+    // Create speed lines effect (initially hidden)
+    this.createSpeedLines();
+  }
+
+  // Create speed lines visual effect
+  createSpeedLines() {
+    this.speedLines = [];
+    
+    // Create horizontal speed lines of varying lengths
+    const lineLengths = [40, 30, 35, 25, 45]; // Different lengths for variety
+    
+    for (let i = 0; i < 5; i++) {
+      const line = this.scene.add.rectangle(0, 0, lineLengths[i], 2, 0xffffff, 0.8);
+      line.setVisible(false);
+      this.speedLines.push(line);
+    }
   }
 
   // Get player position
@@ -56,6 +76,7 @@ export class Player {
     // Don't allow movement or other actions while swinging
     if (this.isSwingInProgress) {
       this.sprite.setVelocityX(0);
+      this.hideSpeedLines();
       return;
     }
 
@@ -66,6 +87,7 @@ export class Player {
       } else {
         this.updatePowerCharge();
       }
+      this.hideSpeedLines();
       return;
     } else if (this.isChargingPower) {
       // Space was released, execute swing with current power
@@ -73,18 +95,35 @@ export class Player {
       return;
     }
 
+    // Check if running (shift held)
+    this.isRunning = keys.shift.isDown;
+    const currentSpeed = this.isRunning ? this.runSpeed : this.walkSpeed;
+
     // Move the player left and right (only when not charging power)
     if (keys.left.isDown) {
-      this.sprite.setVelocityX(-this.speed);
+      this.sprite.setVelocityX(-currentSpeed);
       this.sprite.flipX = true;
       this.sprite.play("walk", true);
+      
+      if (this.isRunning) {
+        this.showSpeedLines(-1); // Moving left
+      } else {
+        this.hideSpeedLines();
+      }
     } else if (keys.right.isDown) {
-      this.sprite.setVelocityX(this.speed);
+      this.sprite.setVelocityX(currentSpeed);
       this.sprite.flipX = false;
       this.sprite.play("walk", true);
+      
+      if (this.isRunning) {
+        this.showSpeedLines(1); // Moving right
+      } else {
+        this.hideSpeedLines();
+      }
     } else {
       this.sprite.setVelocityX(0);
       this.sprite.anims.stop();
+      this.hideSpeedLines();
     }
   }
 
@@ -131,6 +170,49 @@ export class Player {
   // Check if currently charging power
   get chargingPower() {
     return this.isChargingPower;
+  }
+
+  // Show speed lines effect
+  showSpeedLines(direction) {
+    if (!this.speedLines) return;
+
+    this.speedLines.forEach((line, index) => {
+      line.setVisible(true);
+      
+      // Position horizontal lines behind the player at different heights
+      const baseOffsetX = direction * 50; // Base distance behind player
+      const randomOffsetX = direction * (10 + Math.random() * 20); // Add some randomness
+      const offsetY = -15 + (index * 8); // Vertical spacing between lines
+      
+      line.setPosition(
+        this.sprite.x - baseOffsetX - randomOffsetX,
+        this.sprite.y + offsetY
+      );
+      
+      // Make lines fade in quickly and move horizontally away from player
+      line.alpha = 0.9;
+      this.scene.tweens.killTweensOf(line);
+      this.scene.tweens.add({
+        targets: line,
+        x: line.x - (direction * 30), // Move further behind
+        alpha: 0,
+        duration: 150,
+        ease: 'Power1',
+        onComplete: () => {
+          line.setVisible(false);
+        }
+      });
+    });
+  }
+
+  // Hide speed lines effect
+  hideSpeedLines() {
+    if (!this.speedLines) return;
+    
+    this.speedLines.forEach(line => {
+      line.setVisible(false);
+      this.scene.tweens.killTweensOf(line);
+    });
   }
 
   // Set player position
