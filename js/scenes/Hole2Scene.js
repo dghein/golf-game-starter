@@ -282,38 +282,318 @@ export default class Hole2Scene extends Phaser.Scene {
     // TODO: Show final scorecard and course completion screen
   }
 
-  // Minimal implementations of required methods
-  createPowerMeter() { /* Same as Hole1Scene */ }
-  createDistanceUI() { /* Same as Hole1Scene */ }
-  createWindUI() { /* Same as Hole1Scene */ }
-  createShotCounterUI() { /* Same as Hole1Scene */ }
-  createDistanceToPinUI() { /* Same as Hole1Scene */ }
-  updatePowerMeter() { /* Same as Hole1Scene */ }
-  updateDistanceUI() { /* Same as Hole1Scene */ }
-  updateWindUI() { /* Same as Hole1Scene */ }
-  updateShotCounterUI() { /* Same as Hole1Scene */ }
-  updateDistanceToPinUI() { /* Same as Hole1Scene */ }
-  incrementShotCounter() { 
+  createPowerMeter() {
+    // Smaller power meter that will follow the player
+    const meterWidth = 100;
+    const meterHeight = 12;
+    
+    // Power meter background
+    this.powerMeterBg = this.add.rectangle(0, 0, meterWidth, meterHeight, 0x333333);
+    this.powerMeterBg.setOrigin(0.5, 1); // Center horizontally, bottom aligned
+    this.powerMeterBg.setStrokeStyle(2, 0xffffff);
+    
+    // Power meter fill
+    this.powerMeterFill = this.add.rectangle(0, 0, 0, meterHeight - 4, 0x00ff00);
+    this.powerMeterFill.setOrigin(0, 0.5); // Left aligned, center vertically
+    
+    // Power meter label (smaller text)
+    this.powerMeterLabel = this.add.text(0, 0, '', {
+      fontSize: '12px',
+      fill: '#ffffff',
+      stroke: '#000000',
+      strokeThickness: 1,
+      fontFamily: 'Arial'
+    });
+    this.powerMeterLabel.setOrigin(0.5, 1); // Center horizontally, bottom aligned
+    
+    // Initially hide power meter
+    this.powerMeterBg.setVisible(false);
+    this.powerMeterFill.setVisible(false);
+    this.powerMeterLabel.setVisible(false);
+  }
+
+  createDistanceUI() {
+    // Distance display in top-right corner, positioned to leave room for pin distance
+    this.distanceText = this.add.text(this.cameras.main.width - 275, 20, '', {
+      fontSize: '24px',
+      fill: '#ffffff',
+      stroke: '#000000',
+      strokeThickness: 2,
+      fontFamily: 'Arial'
+    });
+    this.distanceText.setOrigin(0, 0); // Left-aligned to grow rightward
+    this.distanceText.setScrollFactor(0); // Keep UI fixed on screen
+    this.updateDistanceUI();
+  }
+
+  createWindUI() {
+    // Wind display in top-right corner, below distance
+    this.windText = this.add.text(this.cameras.main.width - 20, 60, '', {
+      fontSize: '20px',
+      fill: '#ffffff',
+      stroke: '#000000',
+      strokeThickness: 2,
+      fontFamily: 'Arial'
+    });
+    this.windText.setOrigin(1, 0); // Right-aligned
+    this.windText.setScrollFactor(0); // Keep UI fixed on screen
+    this.updateWindUI();
+  }
+
+  createShotCounterUI() {
+    // Shot counter display in top-right corner, below wind
+    this.shotCounterText = this.add.text(this.cameras.main.width - 20, 100, '', {
+      fontSize: '20px',
+      fill: '#ffffff',
+      stroke: '#000000',
+      strokeThickness: 2,
+      fontFamily: 'Arial'
+    });
+    this.shotCounterText.setOrigin(1, 0); // Right-aligned
+    this.shotCounterText.setScrollFactor(0); // Keep UI fixed on screen
+    this.updateShotCounterUI();
+  }
+
+  createDistanceToPinUI() {
+    // Distance to pin display on same line as shot distance, to the right
+    this.distanceToPinText = this.add.text(this.cameras.main.width - 20, 20, '', {
+      fontSize: '24px', // Match shot distance font size
+      fill: '#ffff00', // Yellow color to distinguish from other UI
+      stroke: '#000000',
+      strokeThickness: 2,
+      fontFamily: 'Arial'
+    });
+    this.distanceToPinText.setOrigin(1, 0); // Right-aligned
+    this.distanceToPinText.setScrollFactor(0); // Keep UI fixed on screen
+    this.updateDistanceToPinUI();
+  }
+
+  updatePowerMeter() {
+    const isCharging = this.player.chargingPower;
+    const powerLevel = this.player.getPowerLevel();
+    
+    // Show/hide power meter based on charging state
+    this.powerMeterBg.setVisible(isCharging);
+    this.powerMeterFill.setVisible(isCharging);
+    this.powerMeterLabel.setVisible(isCharging);
+    
+    if (isCharging) {
+      // Position power meter above the player
+      const playerX = this.player.x;
+      const playerY = this.player.y;
+      const offsetY = -60; // Distance above player
+      
+      // Update positions
+      this.powerMeterBg.setPosition(playerX, playerY + offsetY);
+      this.powerMeterFill.setPosition(playerX - 48, playerY + offsetY); // Left edge of meter
+      this.powerMeterLabel.setPosition(playerX, playerY + offsetY - 20);
+      
+      // Update power meter fill width
+      const maxWidth = 96; // meterWidth - 4 (for padding)
+      const currentWidth = maxWidth * powerLevel;
+      this.powerMeterFill.width = currentWidth;
+      
+      // Change color based on power level
+      let color = 0x00ff00; // Green for low power
+      if (powerLevel > 0.7) {
+        color = 0xff0000; // Red for high power
+      } else if (powerLevel > 0.4) {
+        color = 0xffff00; // Yellow for medium power
+      }
+      this.powerMeterFill.setFillStyle(color);
+      
+      // Update label with power percentage (shorter text for smaller meter)
+      const powerPercent = Math.round(powerLevel * 100);
+      this.powerMeterLabel.setText(`${powerPercent}%`);
+    }
+  }
+
+  updateDistanceUI() {
+    const currentDistance = this.golfBall.getCurrentDistance();
+    const lastDistance = this.golfBall.getLastShotDistance();
+    const isTracking = this.golfBall.isTrackingDistance();
+    
+    let distanceText = '';
+    
+    if (isTracking) {
+      // Show current shot distance while ball is moving
+      distanceText = `${currentDistance} yds`;
+    } else if (lastDistance > 0) {
+      // Show last completed shot distance
+      distanceText = `${lastDistance} yds`;
+    } else {
+      // No shots taken yet
+      distanceText = '0 yds';
+    }
+    
+    this.distanceText.setText(distanceText);
+  }
+
+  updateWindUI() {
+    const windInfo = this.windSystem.getWindInfo();
+    this.windText.setText(`Wind: ${windInfo.speed} mph ${windInfo.compass}`);
+  }
+
+  updateShotCounterUI() {
+    this.shotCounterText.setText(`Shots: ${this.shotCount}`);
+  }
+
+  updateDistanceToPinUI() {
+    const ballX = this.golfBall.x;
+    const ballY = this.golfBall.y;
+    const pinPosition = this.terrain.getPinPosition();
+    
+    // Calculate distance in pixels
+    const distancePixels = Math.sqrt(
+      Math.pow(pinPosition.x - ballX, 2) + 
+      Math.pow(pinPosition.y - ballY, 2)
+    );
+    
+    // Convert to yards (20 pixels per yard)
+    const distanceYards = Math.round(distancePixels / 20);
+    
+    this.distanceToPinText.setText(`  |  Pin: ${distanceYards} yds`);
+  }
+
+  incrementShotCounter() {
     this.shotCount++;
     this.updateShotCounterUI();
-    this.updateHoleInfoUI();
+    this.updateHoleInfoUI(); // Update hole info with new score
+    console.log(`Shot ${this.shotCount} taken`);
   }
-  resetShotCounter() { /* Same as Hole1Scene */ }
-  switchCameraToBall() { /* Same as Hole1Scene */ }
-  switchCameraToPlayer() { /* Same as Hole1Scene */ }
-  updateCameraFollow() { /* Same as Hole1Scene */ }
+
+  resetShotCounter() {
+    this.shotCount = 0;
+    this.updateShotCounterUI();
+    console.log('Shot counter reset for new hole');
+  }
+
+  switchCameraToBall() {
+    if (!this.cameraFollowingBall) {
+      this.cameras.main.startFollow(this.golfBall.sprite);
+      this.cameraFollowingBall = true;
+      console.log('Camera switched to following ball');
+    }
+  }
+  
+  switchCameraToPlayer() {
+    if (this.cameraFollowingBall) {
+      this.cameras.main.startFollow(this.player.sprite);
+      this.cameraFollowingBall = false;
+      console.log('Camera switched back to following player');
+    }
+  }
+  
+  updateCameraFollow() {
+    const ballIsMoving = this.golfBall.isMoving();
+    const ballIsStablyStopped = this.golfBall.isStablyStopped(this.game.loop.delta);
+    const playerIsMoving = this.player.isMoving();
+    
+    // Switch back to following player as soon as they start moving
+    if (this.cameraFollowingBall && playerIsMoving) {
+      this.switchCameraToPlayer();
+    }
+    // Also switch back to following player when ball is stably stopped (fallback)
+    else if (this.cameraFollowingBall && ballIsStablyStopped) {
+      this.switchCameraToPlayer();
+    }
+    
+    // Track ball movement state for next frame
+    this.ballWasMoving = ballIsMoving;
+  }
   
   update() {
-    // Minimal update loop - you'd copy the full update from Hole1Scene
-    this.player.update(this.keys);
-    if (this.player.isSwinging()) {
-      this.golfBall.checkHit(this.player, this.clubManager, this.keys);
+    const keys = this.keys;
+
+    // Handle club switching
+    if (Phaser.Input.Keyboard.JustDown(keys.one)) {
+      this.clubManager.selectDriver();
+      this.updateClubUI();
+      console.log('Switched to Driver');
     }
+    
+    if (Phaser.Input.Keyboard.JustDown(keys.two)) {
+      this.clubManager.selectPutter();
+      this.updateClubUI();
+      console.log('Switched to Putter');
+    }
+    
+    if (Phaser.Input.Keyboard.JustDown(keys.three)) {
+      this.clubManager.selectWedge();
+      this.updateClubUI();
+      console.log('Switched to Wedge');
+    }
+    
+    if (Phaser.Input.Keyboard.JustDown(keys.four)) {
+      this.clubManager.selectIron();
+      this.updateClubUI();
+      console.log('Switched to Iron');
+    }
+    
+    // Handle manual camera switching
+    if (Phaser.Input.Keyboard.JustDown(keys.c)) {
+      if (this.cameraFollowingBall) {
+        this.switchCameraToPlayer();
+      } else {
+        this.switchCameraToBall();
+      }
+    }
+    
+    // Handle shot counter reset
+    if (Phaser.Input.Keyboard.JustDown(keys.r)) {
+      this.resetShotCounter();
+    }
+    
+    // Debug: Test clap sound with 'p' key
+    if (Phaser.Input.Keyboard.JustDown(keys.p)) {
+      console.log('Testing clap sound...');
+      if (this.clapSound) {
+        this.clapSound.play();
+        console.log('Clap sound played manually');
+      } else {
+        console.log('Clap sound not available for manual test');
+      }
+    }
+
+    // Update player movement and animations
+    this.player.update(keys);
+
+    // Update power meter display
+    this.updatePowerMeter();
+
+    // Check if player is trying to hit the ball (only during swing animation)
+    if (this.player.isSwinging()) {
+      this.golfBall.checkHit(this.player, this.clubManager, keys);
+    }
+
+    // Update wind system
+    this.windSystem.update(this.game.loop.delta);
+    this.updateWindUI();
+
+    // Update terrain physics for ball
     this.golfBall.updateTerrainPhysics();
+
+    // Apply wind effects to ball during flight
     this.golfBall.applyWindEffects();
-    this.golfBall.applyGroundFriction(this.clubManager.getCurrentClub());
+
+    // Apply ground friction when ball is rolling (pass current club for different friction)
+    const currentClubType = this.clubManager.getCurrentClub();
+    this.golfBall.applyGroundFriction(currentClubType);
+
+    // Update distance tracking
     this.golfBall.updateDistance(this.game.loop.delta);
+    this.updateDistanceUI();
+    
+    // Always check for ball stabilization (even when not tracking distance)
     this.golfBall.isStablyStopped(this.game.loop.delta);
+    
+    // Check for target circle collision (runs every frame)
     this.golfBall.checkTargetCircleCollision();
+    
+    // Update distance to pin
+    this.updateDistanceToPinUI();
+    
+    // Handle camera switching between player and ball
+    this.updateCameraFollow();
   }
 }

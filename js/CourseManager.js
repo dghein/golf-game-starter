@@ -134,6 +134,18 @@ export class CourseManager {
     return `Hole${holeNumber}Scene`;
   }
 
+  // Go to specific hole (for debugging/testing)
+  gotoHole(holeNumber) {
+    if (holeNumber >= 1 && holeNumber <= this.totalHoles) {
+      this.currentHole = holeNumber;
+      console.log(`Switched to Hole ${this.currentHole} - Par ${this.getCurrentPar()}, ${this.getCurrentYardage()} yards`);
+      return true;
+    } else {
+      console.error(`Invalid hole number: ${holeNumber}. Must be between 1 and ${this.totalHoles}`);
+      return false;
+    }
+  }
+
   // Reset course (for new game)
   reset() {
     this.currentHole = 1;
