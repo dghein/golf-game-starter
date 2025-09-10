@@ -65,7 +65,7 @@ export default class GameScene extends Phaser.Scene {
 
     // Create golf ball at terrain height
     const ballStartX = 200;
-    const ballStartY = this.terrain.getHeightAtX(ballStartX) - 15; // 15px above terrain
+    const ballStartY = this.terrain.getHeightAtX(ballStartX) - 10; // 10px above terrain (lowered by 5px)
     this.golfBall = new GolfBall(this, ballStartX, ballStartY);
     this.golfBall.setTerrain(this.terrain);
 
