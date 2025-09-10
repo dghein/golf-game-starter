@@ -63,12 +63,18 @@ export default class Hole1Scene extends Phaser.Scene {
     const startY = this.terrain.getHeightAtX(startX) - 30; // 30px above terrain
     this.player = new Player(this, startX, startY);
     this.player.setTerrain(this.terrain);
+    
+    // Set player depth to appear above terrain but below water
+    this.player.sprite.setDepth(5);
 
     // Create golf ball at terrain height
     const ballStartX = 200;
     const ballStartY = this.terrain.getHeightAtX(ballStartX) - 10; // 10px above terrain (lowered by 5px)
     this.golfBall = new GolfBall(this, ballStartX, ballStartY);
     this.golfBall.setTerrain(this.terrain);
+    
+    // Set golf ball depth to appear above terrain but below water
+    this.golfBall.sprite.setDepth(5);
 
     // Create and set hit sounds for the golf ball
     this.hitSound = this.sound.add("hit", { volume: 0.5 });

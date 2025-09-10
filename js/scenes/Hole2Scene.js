@@ -4,7 +4,7 @@ import { GolfBall } from "../golfball.js";
 import { Player } from "../player.js";
 import { ClubManager, CLUB_TYPES } from "../clubs.js";
 import { WindSystem } from "../wind.js";
-import { Terrain } from "../terrain.js";
+import { Hole2Terrain } from "../Hole2Terrain.js";
 import { courseManager } from "../CourseManager.js";
 
 export default class Hole2Scene extends Phaser.Scene {
@@ -42,17 +42,17 @@ export default class Hole2Scene extends Phaser.Scene {
   create() {
     console.log(`Creating Hole ${courseManager.getCurrentHole()} - Par ${courseManager.getCurrentPar()}`);
     
-    // Set world bounds for expanded golf hole, with extra space above for ball flight
-    this.physics.world.setBounds(0, -1000, 15000, 1650); // Extended width for expanded water and fairway
+    // Set world bounds for shorter hole (250 yards = 5000 pixels)
+    this.physics.world.setBounds(0, -1000, 5000, 1650); // Reduced width for shorter hole
     
     // Enable gravity for realistic falling
     // this.physics.world.gravity.y = 500; // Gravity pulls objects down
     
-    // Create repeating sky background across the entire course
-    this.add.tileSprite(0, 0, 15000, 600, "sky").setOrigin(0, 0);
+    // Create repeating sky background across the shorter course
+    this.add.tileSprite(0, 0, 5000, 600, "sky").setOrigin(0, 0);
 
-    // Create terrain system with green (you can customize this for each hole)
-    this.terrain = new Terrain(this);
+    // Create custom terrain system for Hole 2
+    this.terrain = new Hole2Terrain(this);
 
     // Create animations
     createGolferAnimations(this);
@@ -65,12 +65,18 @@ export default class Hole2Scene extends Phaser.Scene {
     const startY = this.terrain.getHeightAtX(startX) - 30; // 30px above terrain
     this.player = new Player(this, startX, startY);
     this.player.setTerrain(this.terrain);
+    
+    // Set player depth to appear above terrain but below water
+    this.player.sprite.setDepth(5);
 
     // Create golf ball at terrain height
     const ballStartX = 200;
     const ballStartY = this.terrain.getHeightAtX(ballStartX) - 10; // 10px above terrain (lowered by 5px)
     this.golfBall = new GolfBall(this, ballStartX, ballStartY);
     this.golfBall.setTerrain(this.terrain);
+    
+    // Set golf ball depth to appear above terrain but below water
+    this.golfBall.sprite.setDepth(5);
 
     // Create and set hit sounds for the golf ball
     this.hitSound = this.sound.add("hit", { volume: 0.5 });
@@ -117,8 +123,8 @@ export default class Hole2Scene extends Phaser.Scene {
     // Set up camera to follow the player initially
     this.cameras.main.startFollow(this.player.sprite);
     
-    // Set camera bounds to cover the full golf course (keep camera on ground level)
-    this.cameras.main.setBounds(0, 0, 15000, 650);
+    // Set camera bounds to cover the shorter golf course (keep camera on ground level)
+    this.cameras.main.setBounds(0, 0, 5000, 650);
     
     // Camera management state
     this.cameraFollowingBall = false;
@@ -586,6 +592,9 @@ export default class Hole2Scene extends Phaser.Scene {
     
     // Always check for ball stabilization (even when not tracking distance)
     this.golfBall.isStablyStopped(this.game.loop.delta);
+    
+    // Check for water collision (runs every frame)
+    this.golfBall.checkWaterCollision();
     
     // Check for target circle collision (runs every frame)
     this.golfBall.checkTargetCircleCollision();

@@ -10,8 +10,8 @@ export class CourseManager {
     
     // Yardage for each hole (you can customize these)
     this.yardages = [
-      520, // Hole 1 - Par 5 (>500 yards)
-      180, // Hole 2 - Par 3 (<230 yards)
+      580, // Hole 1 - Par 5 (>500 yards) - matches actual terrain layout (11600px ÷ 20px/yard = 580y)
+      175, // Hole 2 - Par 3 - custom shorter hole with pin at 175 yards
       420, // Hole 3 - Par 4 (230-500 yards)
       350, // Hole 4 - Par 4
       160, // Hole 5 - Par 3

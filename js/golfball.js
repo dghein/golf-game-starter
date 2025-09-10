@@ -38,6 +38,10 @@ export class GolfBall {
     this.terrain = null; // Will be set by GameScene
     this.groundRadius = 12; // Ball radius for ground collision
     
+    // Approach direction tracking for water drops
+    this.previousPosition = { x: x, y: y };
+    this.approachDirection = 'right'; // Default direction (left to right)
+    
     // Sound properties
     this.hitSound = null; // Will be set by GameScene
     this.puttSound = null; // Will be set by GameScene
@@ -430,10 +434,25 @@ export class GolfBall {
     
     // IMMEDIATE stabilization when horizontal movement stops
     if (horizontalVel < 8) {
-      // Ball has essentially stopped rolling - stabilize immediately
-      this.stabilizeBall();
-      console.log(`Ball stabilized - horizontal movement stopped (hVel: ${Math.round(horizontalVel)}, vVel: ${Math.round(verticalVel)})`);
-      return true;
+      // Check if ball is on terrain before stabilizing
+      if (this.terrain) {
+        const terrainHeight = this.terrain.getHeightAtX(this.sprite.x);
+        const ballBottom = this.sprite.y + this.groundRadius;
+        
+        // Only stabilize if ball is close to terrain surface (not floating)
+        if (ballBottom >= terrainHeight - 5) {
+          this.stabilizeBall();
+          console.log(`Ball stabilized - horizontal movement stopped (hVel: ${Math.round(horizontalVel)}, vVel: ${Math.round(verticalVel)})`);
+          return true;
+        } else {
+          console.log(`Ball not stabilized - floating above terrain (ball: ${Math.round(ballBottom)}, terrain: ${Math.round(terrainHeight)})`);
+        }
+      } else {
+        // No terrain - stabilize normally
+        this.stabilizeBall();
+        console.log(`Ball stabilized - horizontal movement stopped (hVel: ${Math.round(horizontalVel)}, vVel: ${Math.round(verticalVel)})`);
+        return true;
+      }
     }
     
     // For balls with low horizontal movement, use timer-based approach
@@ -442,9 +461,24 @@ export class GolfBall {
       
       // Very short wait time when horizontal movement is low
       if (this.stableStopTimer >= 150) {
-        this.stabilizeBall();
-        console.log(`Ball stabilized after brief wait - low horizontal movement (hVel: ${Math.round(horizontalVel)})`);
-        return true;
+        // Check if ball is on terrain before stabilizing
+        if (this.terrain) {
+          const terrainHeight = this.terrain.getHeightAtX(this.sprite.x);
+          const ballBottom = this.sprite.y + this.groundRadius;
+          
+          // Only stabilize if ball is close to terrain surface
+          if (ballBottom >= terrainHeight - 5) {
+            this.stabilizeBall();
+            console.log(`Ball stabilized after brief wait - low horizontal movement (hVel: ${Math.round(horizontalVel)})`);
+            return true;
+          } else {
+            console.log(`Ball not stabilized - still floating above terrain (ball: ${Math.round(ballBottom)}, terrain: ${Math.round(terrainHeight)})`);
+          }
+        } else {
+          this.stabilizeBall();
+          console.log(`Ball stabilized after brief wait - low horizontal movement (hVel: ${Math.round(horizontalVel)})`);
+          return true;
+        }
       }
     } else {
       // Reset timer if ball is still rolling horizontally
@@ -456,6 +490,18 @@ export class GolfBall {
   
   // Stabilize the ball to stop all vibration
   stabilizeBall() {
+    // Ensure ball is on terrain surface before stabilizing
+    if (this.terrain) {
+      const terrainHeight = this.terrain.getHeightAtX(this.sprite.x);
+      const targetY = terrainHeight - this.groundRadius;
+      
+      // If ball is floating above terrain, adjust it to terrain surface
+      if (this.sprite.y < targetY) {
+        this.sprite.setY(targetY);
+        console.log(`Ball adjusted to terrain surface before stabilizing: ${Math.round(targetY)}`);
+      }
+    }
+    
     this.isStabilized = true;
     this.stabilizedPosition = { x: this.sprite.x, y: this.sprite.y };
     
@@ -599,8 +645,13 @@ export class GolfBall {
       return { x: this.originalPosition.x, y: this.originalPosition.y };
     }
     
-    // Drop the ball just before the water hazard starts, on safe ground
-    const dropX = this.terrain.waterStartX - 80; // 80 pixels before water starts
+    // Use the terrain's water hazard system for drop positioning
+    if (this.terrain.findWaterDropPosition) {
+      return this.terrain.findWaterDropPosition(this.sprite.x, this.sprite.y, this.approachDirection);
+    }
+    
+    // Fallback to old logic if terrain doesn't have new method
+    const dropX = this.terrain.waterStartX - 250; // 12.5 yards before water starts for better visibility
     const dropY = this.terrain.getHeightAtX(dropX) - this.groundRadius - 5; // On ground surface
     
     return { x: dropX, y: dropY };
@@ -657,9 +708,31 @@ export class GolfBall {
     return ballBottom >= terrainHeight;
   }
 
+  // Update approach direction tracking
+  updateApproachDirection() {
+    const currentX = this.sprite.x;
+    const previousX = this.previousPosition.x;
+    
+    // Only update direction if ball has moved significantly
+    if (Math.abs(currentX - previousX) > 5) {
+      if (currentX > previousX) {
+        this.approachDirection = 'right'; // Moving left to right
+      } else {
+        this.approachDirection = 'left'; // Moving right to left
+      }
+      
+      // Update previous position
+      this.previousPosition.x = currentX;
+      this.previousPosition.y = this.sprite.y;
+    }
+  }
+
   // Update ball position to interact with terrain
   updateTerrainPhysics() {
     if (!this.terrain) return;
+    
+    // Update approach direction tracking
+    this.updateApproachDirection();
     
     // Don't apply terrain physics to stabilized balls
     if (this.isStabilized) {

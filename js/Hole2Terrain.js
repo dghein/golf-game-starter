@@ -1,31 +1,31 @@
+import { WaterHazardMixin } from './WaterHazard.js';
+
 /**
- * Terrain system for generating and managing hilly golf course terrain with green
+ * Hole2Terrain - Custom terrain for Hole 2: 250 yards total, hole at 175 yards
+ * Example of using the reusable water hazard system
  */
-export class Terrain {
+export class Hole2Terrain {
   constructor(scene) {
     this.scene = scene;
-    this.width = 15000; // Extended width to accommodate expanded water and additional fairway
+    this.width = 5000; // Reduced width for 250-yard hole (250 * 20 = 5000 pixels)
     this.baseHeight = 600; // Base ground level
     this.heightMap = [];
     this.terrainGraphics = null;
-    this.segments = 750; // Increased segments for smoother curves with extended width
+    this.segments = 250; // Reduced segments for shorter course
     
-    // Green properties
-    this.greenWidth = 1024; // Approximately screen width
-    this.greenStartX = 11800; // Position at reasonable distance (keep original 660-yard hole distance)
+    // Green properties - positioned at 175 yards from start
+    this.greenWidth = 400; // Smaller green for shorter hole
+    this.greenStartX = 3400; // 175 yards * 20 pixels/yard = 3500, minus half green width = 3300
     this.greenEndX = this.greenStartX + this.greenWidth;
-    this.greenHeight = 25; // Reduced elevation for easier putting (was 50)
-    this.greenSlopeWidth = 300; // Wider, gentler slopes (was 200)
+    this.greenHeight = 20; // Slight elevation for the green
+    this.greenSlopeWidth = 200; // Gentler slopes
     
-    // Pin/hole position (center of green)
-    this.pinX = this.greenStartX + (this.greenWidth / 2);
+    // Pin/hole position (center of green at 175 yards)
+    this.pinX = 3500; // Exactly 175 yards from start (175 * 20 = 3500)
     this.pinY = this.baseHeight - this.greenHeight;
     
-    // Water hazard properties (behind the green)
-    this.waterStartX = this.greenEndX + 50; // Start 50 pixels after green ends
-    this.waterWidth = 400; // Width of water hazard
-    this.waterEndX = this.waterStartX + this.waterWidth;
-    // Water level will be set after terrain generation
+    // Initialize water hazard system
+    this.initWaterHazards();
     
     // Generate the terrain height map
     this.generateTerrain();
@@ -33,11 +33,34 @@ export class Terrain {
     // Smooth the terrain for more natural curves
     this.smoothTerrain();
     
-    // Set water level to match the actual green surface height
-    this.waterLevel = this.getHeightAtX(this.greenEndX);
-    
-    // Create visual representation
+    // Create visual representation first
     this.createTerrainGraphics();
+    
+    // Add water hazard AFTER terrain is rendered to ensure proper layering
+    this.addWaterHazardAfterTerrain();
+  }
+
+  addWaterHazardAfterTerrain() {
+    // Add 50-yard wide water hazard in front of green AFTER terrain is rendered
+    const waterWidth = 1000; // 50 yards (reduced from 100 yards)
+    const waterStartX = this.greenStartX - waterWidth - 100; // 50 yards before green, with 100px buffer
+    const waterEndX = waterStartX + waterWidth;
+    
+    // Calculate water level based on terrain at that position
+    const terrainHeightAtWater = this.getTerrainHeightAtX(waterStartX + (waterWidth / 2)); // Middle of water hazard
+    
+    console.log('Hole 2 Water Hazard Configuration:');
+    console.log(`Green starts at: ${this.greenStartX} pixels (${this.greenStartX/20} yards)`);
+    console.log(`Water starts at: ${waterStartX} pixels (${waterStartX/20} yards)`);
+    console.log(`Water ends at: ${waterEndX} pixels (${waterEndX/20} yards)`);
+    console.log(`Water width: ${waterWidth} pixels (${waterWidth/20} yards)`);
+    console.log(`Water level: ${terrainHeightAtWater - 20} pixels`);
+    
+    this.addWaterHazard({
+      startX: waterStartX,
+      width: waterWidth, // 50 yards (reduced from 100 yards)
+      level: terrainHeightAtWater - 20 // 20 pixels below terrain surface
+    });
   }
 
   generateTerrain() {
@@ -47,31 +70,27 @@ export class Terrain {
     for (let i = 0; i <= this.segments; i++) {
       const x = i * segmentWidth;
       
-      // Base terrain with only large, smooth rolling hills
-      const wave1 = Math.sin(x * 0.0004) * 60;  // Large smooth rolling hills
-      const wave2 = Math.sin(x * 0.0008) * 30;  // Medium smooth hills
-      // Removed small undulations completely for ultra-smooth terrain
-      
-      // No random variation for perfectly smooth terrain
-      const randomVariation = 0; // Completely removed random variation
+      // Gentler terrain for shorter hole
+      const wave1 = Math.sin(x * 0.001) * 40;  // Gentle rolling hills
+      const wave2 = Math.sin(x * 0.002) * 20;  // Smaller undulations
       
       // Calculate base height
-      let height = this.baseHeight - (wave1 + wave2 + randomVariation);
+      let height = this.baseHeight - (wave1 + wave2);
       
       // Add green elevation
       height = this.applyGreenElevation(x, height);
       
       this.heightMap.push({
         x: x,
-        y: Math.max(height, 450), // Ensure terrain doesn't go too high (min y = 450)
+        y: Math.max(height, 450), // Ensure terrain doesn't go too high
         isGreen: this.isInGreenArea(x)
       });
     }
   }
 
   smoothTerrain() {
-    // Apply many smoothing passes for ultra-smooth terrain to eliminate ball vibration
-    const smoothingPasses = 6; // Increased to 6 passes for maximum smoothness
+    // Apply smoothing passes for smooth terrain
+    const smoothingPasses = 4;
     
     for (let pass = 0; pass < smoothingPasses; pass++) {
       for (let i = 1; i < this.heightMap.length - 1; i++) {
@@ -85,45 +104,9 @@ export class Terrain {
         const currentY = this.heightMap[i].y;
         const nextY = this.heightMap[i + 1].y;
         
-        // Very aggressive smoothing to eliminate all jaggedness
-        this.heightMap[i].y = (prevY * 0.35 + currentY * 0.3 + nextY * 0.35);
+        // Smooth terrain
+        this.heightMap[i].y = (prevY * 0.3 + currentY * 0.4 + nextY * 0.3);
       }
-    }
-    
-    // Multiple passes with wider smoothing windows for ultra-smooth terrain
-    for (let pass = 0; pass < 3; pass++) {
-      for (let i = 2; i < this.heightMap.length - 2; i++) {
-        if (this.isInGreenComplex(this.heightMap[i].x)) {
-          continue;
-        }
-        
-        // 5-point smoothing for perfectly smooth terrain
-        const y1 = this.heightMap[i - 2].y;
-        const y2 = this.heightMap[i - 1].y;
-        const y3 = this.heightMap[i].y;
-        const y4 = this.heightMap[i + 1].y;
-        const y5 = this.heightMap[i + 2].y;
-        
-        this.heightMap[i].y = (y1 * 0.1 + y2 * 0.25 + y3 * 0.3 + y4 * 0.25 + y5 * 0.1);
-      }
-    }
-    
-    // Final 7-point ultra-smoothing pass for glass-smooth terrain
-    for (let i = 3; i < this.heightMap.length - 3; i++) {
-      if (this.isInGreenComplex(this.heightMap[i].x)) {
-        continue;
-      }
-      
-      // 7-point smoothing for absolutely smooth terrain
-      const y1 = this.heightMap[i - 3].y;
-      const y2 = this.heightMap[i - 2].y;
-      const y3 = this.heightMap[i - 1].y;
-      const y4 = this.heightMap[i].y;
-      const y5 = this.heightMap[i + 1].y;
-      const y6 = this.heightMap[i + 2].y;
-      const y7 = this.heightMap[i + 3].y;
-      
-      this.heightMap[i].y = (y1 * 0.05 + y2 * 0.1 + y3 * 0.2 + y4 * 0.3 + y5 * 0.2 + y6 * 0.1 + y7 * 0.05);
     }
   }
 
@@ -140,8 +123,8 @@ export class Terrain {
         const progress = (x - leftSlopeStart) / this.greenSlopeWidth;
         elevationMultiplier = this.smoothStep(progress);
       } else if (x >= this.greenStartX && x <= this.greenEndX) {
-        // On the green - completely flat surface for no ball vibration
-        elevationMultiplier = 1.0; // Perfectly flat, no undulation
+        // On the green - completely flat surface
+        elevationMultiplier = 1.0;
       } else if (x > this.greenEndX && x <= rightSlopeEnd) {
         // Right slope - gradual descent from green
         const progress = 1 - ((x - this.greenEndX) / this.greenSlopeWidth);
@@ -179,17 +162,12 @@ export class Terrain {
     };
   }
 
-  // Check if ball is in water hazard
-  isBallInWater(ballX, ballY) {
-    return ballX >= this.waterStartX && 
-           ballX <= this.waterEndX && 
-           ballY >= this.waterLevel - 20; // Trigger collision slightly above water surface
-  }
+  // Check if ball is in water hazard (using mixin method)
+  // isBallInWater method is provided by WaterHazardMixin
 
-  // Check if ball is in the target circle area (smallest circle)
+  // Check if ball is in the target circle area
   isBallInTargetCircle(ballX, ballY) {
-    // Calculate center of the concentric circles (same as addGreenTexture method)
-    const centerX = this.greenStartX + (this.greenWidth / 2);
+    const centerX = this.pinX;
     const centerY = this.getHeightAtX(centerX);
     
     const distanceToCenter = Math.sqrt(
@@ -202,13 +180,13 @@ export class Terrain {
       console.log(`Ball distance to hole: ${Math.round(distanceToCenter)} pixels (need <= 30)`);
     }
     
-    // Target area is the smallest circle (increased to 30 pixel radius for easier testing)
+    // Target area is 30 pixel radius
     return distanceToCenter <= 30;
   }
 
   // Get the center position of the target circle
   getTargetCircleCenter() {
-    const centerX = this.greenStartX + (this.greenWidth / 2);
+    const centerX = this.pinX;
     const centerY = this.getHeightAtX(centerX);
     return { x: centerX, y: centerY };
   }
@@ -228,7 +206,6 @@ export class Terrain {
       if (index === 0) {
         this.terrainGraphics.lineTo(point.x, point.y);
       } else {
-        // Use straight lines between points (Phaser doesn't have quadraticCurveTo)
         this.terrainGraphics.lineTo(point.x, point.y);
       }
     });
@@ -245,15 +222,24 @@ export class Terrain {
     // Add green area overlay
     this.addGreenOverlay();
     
-    // Add water hazard
-    this.addWaterHazard();
-    
     // Add outline
     this.terrainGraphics.lineStyle(2, 0x388E3C); // Darker green outline
     this.terrainGraphics.strokePath();
     
     // Add texture details
     this.addTerrainDetails();
+    
+    // Render water hazards AFTER terrain to ensure they appear on top
+    this.renderWaterHazards();
+  }
+
+  renderWaterHazards() {
+    if (this.waterHazards && this.waterHazards.length > 0) {
+      this.waterHazards.forEach(hazard => {
+        // Re-render each water hazard to ensure proper layering
+        hazard.createWaterGraphics();
+      });
+    }
   }
 
   addGreenOverlay() {
@@ -278,7 +264,6 @@ export class Terrain {
         if (index === 0) {
           greenGraphics.lineTo(point.x, point.y);
         } else {
-          // Use straight lines between points
           greenGraphics.lineTo(point.x, point.y);
         }
       });
@@ -303,60 +288,34 @@ export class Terrain {
     const endX = greenPoints[greenPoints.length - 1].x;
     
     // Add horizontal mowing lines
-    for (let x = startX; x < endX; x += 30) {
+    for (let x = startX; x < endX; x += 20) {
       const height1 = this.getHeightAtX(x);
-      const height2 = this.getHeightAtX(x + 25);
-      graphics.lineBetween(x, height1, x + 25, height2);
+      const height2 = this.getHeightAtX(x + 15);
+      graphics.lineBetween(x, height1, x + 15, height2);
     }
     
-    // Add some circular patterns typical of putting greens
-    const centerX = (startX + endX) / 2;
+    // Add circular patterns for putting green
+    const centerX = this.pinX;
     const centerY = this.getHeightAtX(centerX);
     
-    for (let radius = 20; radius <= 80; radius += 20) {
+    for (let radius = 15; radius <= 60; radius += 15) {
       graphics.lineStyle(1, 0x1B5E20, 0.2);
       graphics.strokeCircle(centerX, centerY, radius);
     }
   }
 
-  addWaterHazard() {
-    // Create water hazard graphics
-    const waterGraphics = this.scene.add.graphics();
-    waterGraphics.setDepth(10); // Ensure water appears above terrain
-    waterGraphics.fillStyle(0x1976D2); // Blue water color
-    
-    // Draw rectangular water hazard
-    waterGraphics.fillRect(
-      this.waterStartX, 
-      this.waterLevel, 
-      this.waterWidth, 
-      768 - this.waterLevel // Extend to bottom of screen
-    );
-    
-    // Add water surface with lighter blue
-    waterGraphics.fillStyle(0x42A5F5); // Lighter blue for surface
-    waterGraphics.fillRect(
-      this.waterStartX, 
-      this.waterLevel, 
-      this.waterWidth, 
-      8 // Thin surface layer
-    );
-    
-    // Removed water outline - no border around water hazard
-  }
-
   addTerrainDetails() {
-    // Add some grass texture lines for regular terrain
+    // Add grass texture lines for regular terrain
     this.terrainGraphics.lineStyle(1, 0x66BB6A, 0.3);
     
-    for (let i = 0; i < this.segments; i += 5) {
+    for (let i = 0; i < this.segments; i += 3) {
       const point = this.heightMap[i];
       if (point && !this.isInGreenComplex(point.x)) {
         // Draw small grass lines only on regular terrain
-        for (let j = 0; j < 3; j++) {
-          const grassX = point.x + (Math.random() - 0.5) * 40;
+        for (let j = 0; j < 2; j++) {
+          const grassX = point.x + (Math.random() - 0.5) * 30;
           const grassY = point.y;
-          const grassHeight = Math.random() * 8 + 2;
+          const grassHeight = Math.random() * 6 + 2;
           
           this.terrainGraphics.lineBetween(
             grassX, grassY,
@@ -367,32 +326,50 @@ export class Terrain {
     }
   }
 
-  // Get terrain height at a specific x coordinate
+  // Get terrain height at a specific x coordinate (including water effects)
   getHeightAtX(x) {
     // Clamp x to terrain bounds
     x = Math.max(0, Math.min(x, this.width));
     
     // Check if position is in water hazard - return much lower height so ball falls in
-    if (x >= this.waterStartX && x <= this.waterEndX) {
-      return this.waterLevel + 100; // Return height well below water surface so ball sinks
+    const waterAdjustment = this.getWaterHeightAdjustment(x);
+    if (waterAdjustment > 0) {
+      // Find the water hazard level and return below it
+      const hazard = this.waterHazards.find(h => x >= h.startX && x <= h.endX);
+      return hazard ? hazard.level + 100 : this.baseHeight + 100;
     }
+    
+    return this.getTerrainHeightAtX(x);
+  }
+
+  // Get actual terrain height without water interference
+  getTerrainHeightAtX(x) {
+    // Clamp x to terrain bounds
+    x = Math.max(0, Math.min(x, this.width));
     
     // Find the closest terrain points
     const segmentWidth = this.width / this.segments;
     const index = Math.floor(x / segmentWidth);
     
-    // Handle edge cases
+    // Handle edge cases with better bounds checking
     if (index >= this.heightMap.length - 1) {
-      return this.heightMap[this.heightMap.length - 1].y;
+      return this.heightMap[this.heightMap.length - 1]?.y || this.baseHeight;
     }
     if (index < 0) {
-      return this.heightMap[0].y;
+      return this.heightMap[0]?.y || this.baseHeight;
     }
     
-    // Interpolate between two points for smooth height
+    // Get points with null checks
     const point1 = this.heightMap[index];
     const point2 = this.heightMap[index + 1];
     
+    // Safety check for undefined points
+    if (!point1 || !point2) {
+      console.warn('Terrain point undefined at index:', index, 'x:', x);
+      return this.baseHeight;
+    }
+    
+    // Interpolate between two points for smooth height
     const localX = x - point1.x;
     const segmentLength = point2.x - point1.x;
     const ratio = segmentLength > 0 ? localX / segmentLength : 0;
@@ -400,7 +377,7 @@ export class Terrain {
     return point1.y + (point2.y - point1.y) * ratio;
   }
 
-  // Get terrain slope at a specific x coordinate (for ball physics)
+  // Get terrain slope at a specific x coordinate
   getSlopeAtX(x) {
     // Green area always has zero slope for stability
     if (this.isInGreenArea(x)) {
@@ -425,7 +402,7 @@ export class Terrain {
     return run !== 0 ? rise / run : 0;
   }
 
-  // Get terrain normal vector at x (for physics calculations)
+  // Get terrain normal vector at x
   getNormalAtX(x) {
     const slope = this.getSlopeAtX(x);
     
@@ -437,7 +414,7 @@ export class Terrain {
     };
   }
 
-  // Check if a point is below the terrain (for collision detection)
+  // Check if a point is below the terrain
   isPointBelowTerrain(x, y) {
     const terrainHeight = this.getHeightAtX(x);
     return y > terrainHeight;
@@ -449,24 +426,26 @@ export class Terrain {
     return y - terrainHeight;
   }
 
-  // Check if ball is on the green (for special physics/scoring)
+  // Check if ball is on the green
   isBallOnGreen(x) {
     return this.isInGreenArea(x);
   }
 
-  // Get green boundaries for UI/scoring purposes
+  // Get green boundaries
   getGreenBounds() {
     return {
       startX: this.greenStartX,
       endX: this.greenEndX,
-      centerX: (this.greenStartX + this.greenEndX) / 2,
+      centerX: this.pinX,
       width: this.greenWidth
     };
   }
 
-  // Update terrain graphics if needed (for dynamic terrain)
+  // Water hazard creation is now handled by the WaterHazard system
+
+  // Update terrain graphics if needed
   update() {
-    // Currently static terrain, but could be extended for dynamic changes
+    // Currently static terrain
   }
 
   // Destroy terrain graphics
@@ -474,5 +453,9 @@ export class Terrain {
     if (this.terrainGraphics) {
       this.terrainGraphics.destroy();
     }
+    this.destroyWaterHazards();
   }
 }
+
+// Apply the WaterHazardMixin to add water hazard functionality
+Object.assign(Hole2Terrain.prototype, WaterHazardMixin);
