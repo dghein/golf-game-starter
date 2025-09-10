@@ -52,6 +52,9 @@ export class GolfBall {
     this.originalPosition = { x: x, y: y }; // Store original position for water penalty
     this.onWaterPenaltyCallback = null; // Will be set by GameScene
     
+    // Hole completion callback
+    this.onHoleCompletedCallback = null; // Will be set by GameScene
+    
     // Conversion: More pixels per yard for finer granularity
     // 20 pixels per yard means 200 yards = 4000 pixels
     this.pixelsPerYard = 20;
@@ -132,6 +135,11 @@ export class GolfBall {
   // Set water penalty callback
   setOnWaterPenaltyCallback(callback) {
     this.onWaterPenaltyCallback = callback;
+  }
+
+  // Set hole completed callback
+  setOnHoleCompletedCallback(callback) {
+    this.onHoleCompletedCallback = callback;
   }
 
   // Apply wind effects during flight
@@ -548,7 +556,10 @@ export class GolfBall {
         console.log('Ball made invisible after delay');
       });
       
-      // TODO: Add more celebration, score tracking, etc.
+      // Trigger hole completed callback
+      if (this.onHoleCompletedCallback) {
+        this.onHoleCompletedCallback();
+      }
       
       return;
     }

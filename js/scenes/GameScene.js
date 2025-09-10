@@ -5,10 +5,11 @@ import { Player } from "../player.js";
 import { ClubManager, CLUB_TYPES } from "../clubs.js";
 import { WindSystem } from "../wind.js";
 import { Terrain } from "../terrain.js";
+import { courseManager } from "../CourseManager.js";
 
-export default class GameScene extends Phaser.Scene {
+export default class Hole1Scene extends Phaser.Scene {
   constructor() {
-    super("GameScene");
+    super("Hole1Scene");
   }
 
   preload() {
@@ -98,6 +99,11 @@ export default class GameScene extends Phaser.Scene {
       this.incrementShotCounter(); // Add penalty stroke
       console.log('Water penalty! Adding penalty stroke.');
     });
+    
+    // Set up hole completion callback
+    this.golfBall.setOnHoleCompletedCallback(() => {
+      this.completeHole();
+    });
 
     // Create club manager
     this.clubManager = new ClubManager();
@@ -146,6 +152,17 @@ export default class GameScene extends Phaser.Scene {
     });
     this.clubText.setScrollFactor(0); // Keep UI fixed on screen
     
+    // Create hole info UI
+    this.holeInfoText = this.add.text(20, 80, '', {
+      fontSize: '20px',
+      fill: '#ffff00',
+      stroke: '#000000',
+      strokeThickness: 2,
+      fontFamily: 'Arial'
+    });
+    this.holeInfoText.setScrollFactor(0);
+    this.updateHoleInfoUI();
+    
     // Create power meter UI
     this.createPowerMeter();
     this.updateClubUI();
@@ -184,6 +201,25 @@ export default class GameScene extends Phaser.Scene {
   updateClubUI() {
     const clubInfo = this.clubManager.getClubInfo();
     this.clubText.setText(`Club: ${clubInfo.name}\n${clubInfo.description}`);
+  }
+
+  updateHoleInfoUI() {
+    const holeNumber = courseManager.getCurrentHole();
+    const par = courseManager.getCurrentPar();
+    const yardage = courseManager.getCurrentYardage();
+    const scoreToPar = courseManager.getScoreRelativeToPar();
+    
+    // Always show score - use "E" for even par, +/- for others
+    let scoreDisplay;
+    if (scoreToPar === 0) {
+      scoreDisplay = 'E';
+    } else if (scoreToPar > 0) {
+      scoreDisplay = `+${scoreToPar}`;
+    } else {
+      scoreDisplay = `${scoreToPar}`; // Already has negative sign
+    }
+    
+    this.holeInfoText.setText(`Hole ${holeNumber} - Par ${par}, ${yardage}y | Total: ${scoreDisplay}`);
   }
 
   createDistanceUI() {
@@ -261,6 +297,7 @@ export default class GameScene extends Phaser.Scene {
   incrementShotCounter() {
     this.shotCount++;
     this.updateShotCounterUI();
+    this.updateHoleInfoUI(); // Update hole info with new score
     console.log(`Shot ${this.shotCount} taken`);
   }
 
@@ -268,6 +305,91 @@ export default class GameScene extends Phaser.Scene {
     this.shotCount = 0;
     this.updateShotCounterUI();
     console.log('Shot counter reset for new hole');
+  }
+
+  completeHole() {
+    console.log(`Hole ${courseManager.getCurrentHole()} completed in ${this.shotCount} strokes!`);
+    
+    // Record score for this hole
+    courseManager.recordScore(this.shotCount);
+    
+    // Show completion message
+    this.showHoleCompletedMessage();
+    
+    // Advance to next hole after delay
+    this.time.delayedCall(3000, () => {
+      this.advanceToNextHole();
+    });
+  }
+
+  showHoleCompletedMessage() {
+    const par = courseManager.getCurrentPar();
+    const strokes = this.shotCount;
+    const scoreName = this.getScoreName(strokes, par);
+    
+    // Create completion message
+    const centerX = this.cameras.main.width / 2;
+    const centerY = this.cameras.main.height / 2;
+    
+    const completionText = this.add.text(centerX, centerY - 50, 
+      `Hole ${courseManager.getCurrentHole()} Complete!\n${strokes} strokes (Par ${par})\n${scoreName}`, {
+      fontSize: '32px',
+      fill: '#ffffff',
+      stroke: '#000000',
+      strokeThickness: 4,
+      fontFamily: 'Arial',
+      align: 'center'
+    });
+    completionText.setOrigin(0.5);
+    completionText.setScrollFactor(0);
+    
+    // Add "Next Hole" text
+    const nextText = this.add.text(centerX, centerY + 50, 'Next hole in 3 seconds...', {
+      fontSize: '24px',
+      fill: '#ffff00',
+      stroke: '#000000',
+      strokeThickness: 2,
+      fontFamily: 'Arial'
+    });
+    nextText.setOrigin(0.5);
+    nextText.setScrollFactor(0);
+  }
+
+  getScoreName(strokes, par) {
+    const diff = strokes - par;
+    if (diff <= -4) return 'Condor!';
+    if (diff === -3) return 'Albatross!';
+    if (diff === -2) return 'Eagle!';
+    if (diff === -1) return 'Birdie!';
+    if (diff === 0) return 'Par';
+    if (diff === 1) return 'Bogey';
+    if (diff === 2) return 'Double Bogey';
+    if (diff === 3) return 'Triple Bogey';
+    return `+${diff}`;
+  }
+
+  advanceToNextHole() {
+    if (courseManager.nextHole()) {
+      // Get next scene name
+      const nextSceneName = courseManager.getCurrentSceneName();
+      
+      // Check if next scene exists, otherwise show completion
+      if (this.scene.manager.scenes.find(scene => scene.sys.config === nextSceneName)) {
+        this.scene.start(nextSceneName);
+      } else {
+        // For now, just restart Hole 1 (until we create more holes)
+        console.log(`Scene ${nextSceneName} not found, restarting Hole 1`);
+        this.scene.restart();
+      }
+    } else {
+      // Course complete!
+      this.showCourseComplete();
+    }
+  }
+
+  showCourseComplete() {
+    console.log('Course Complete!');
+    // TODO: Show final scorecard and course completion screen
   }
 
   createDistanceToPinUI() {
