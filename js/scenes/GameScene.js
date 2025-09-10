@@ -27,18 +27,26 @@ export default class GameScene extends Phaser.Scene {
     }
     // Load sound effects
     this.load.audio("hit", "assets/sounds/hit.mp3");
+    this.load.audio("putt", "assets/sounds/putt.mp3");
+    this.load.audio("swoosh", "assets/sounds/swoosh.mp3");
     this.load.audio("splash", "assets/sounds/splash.mp3");
+    this.load.audio("clap", "assets/sounds/clap.mp3");
+    
+    // Debug: Log when clap sound is loaded
+    this.load.on('filecomplete-audio-clap', () => {
+      console.log('Clap sound file loaded successfully');
+    });
   }
 
   create() {
-    // Set world bounds for 660-yard golf hole, with extra space above for ball flight
-    this.physics.world.setBounds(0, -1000, 13200, 1650); // 660 yards = 13,200px wide
+    // Set world bounds for expanded golf hole, with extra space above for ball flight
+    this.physics.world.setBounds(0, -1000, 15000, 1650); // Extended width for expanded water and fairway
     
     // Enable gravity for realistic falling
     // this.physics.world.gravity.y = 500; // Gravity pulls objects down
     
     // Create repeating sky background across the entire course
-    this.add.tileSprite(0, 0, 13200, 600, "sky").setOrigin(0, 0);
+    this.add.tileSprite(0, 0, 15000, 600, "sky").setOrigin(0, 0);
 
     // Create terrain system with green
     this.terrain = new Terrain(this);
@@ -61,13 +69,23 @@ export default class GameScene extends Phaser.Scene {
     this.golfBall = new GolfBall(this, ballStartX, ballStartY);
     this.golfBall.setTerrain(this.terrain);
 
-    // Create and set hit sound for the golf ball
+    // Create and set hit sounds for the golf ball
     this.hitSound = this.sound.add("hit", { volume: 0.5 });
+    this.puttSound = this.sound.add("putt", { volume: 0.4 });
+    this.swooshSound = this.sound.add("swoosh", { volume: 0.6 });
     this.golfBall.setHitSound(this.hitSound);
+    this.golfBall.setPuttSound(this.puttSound);
+    this.golfBall.setSwooshSound(this.swooshSound);
     
     // Create and set splash sound for water hazard
     this.splashSound = this.sound.add("splash", { volume: 0.7 });
     this.golfBall.setSplashSound(this.splashSound);
+    
+    // Create and set clap sound for hole completion
+    this.clapSound = this.sound.add("clap", { volume: 0.8 });
+    console.log('Clap sound created:', this.clapSound);
+    this.golfBall.setClapSound(this.clapSound);
+    console.log('Clap sound set on golf ball');
     
     // Set up camera switching callback
     this.golfBall.setOnBallHitCallback(() => {
@@ -92,7 +110,7 @@ export default class GameScene extends Phaser.Scene {
     this.cameras.main.startFollow(this.player.sprite);
     
     // Set camera bounds to cover the full golf course (keep camera on ground level)
-    this.cameras.main.setBounds(0, 0, 13200, 650);
+    this.cameras.main.setBounds(0, 0, 15000, 650);
     
     // Camera management state
     this.cameraFollowingBall = false;
@@ -364,6 +382,17 @@ export default class GameScene extends Phaser.Scene {
     if (Phaser.Input.Keyboard.JustDown(keys.r)) {
       this.resetShotCounter();
     }
+    
+    // Debug: Test clap sound with 'p' key
+    if (Phaser.Input.Keyboard.JustDown(keys.p)) {
+      console.log('Testing clap sound...');
+      if (this.clapSound) {
+        this.clapSound.play();
+        console.log('Clap sound played manually');
+      } else {
+        console.log('Clap sound not available for manual test');
+      }
+    }
 
     // Update player movement and animations
     this.player.update(keys);
@@ -393,6 +422,9 @@ export default class GameScene extends Phaser.Scene {
     // Update distance tracking
     this.golfBall.updateDistance(this.game.loop.delta);
     this.updateDistanceUI();
+    
+    // Check for target circle collision (runs every frame)
+    this.golfBall.checkTargetCircleCollision();
     
     // Update distance to pin
     this.updateDistanceToPinUI();

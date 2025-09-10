@@ -4,15 +4,15 @@
 export class Terrain {
   constructor(scene) {
     this.scene = scene;
-    this.width = 13200; // 660 yards = 13,200 pixels
+    this.width = 15000; // Extended width to accommodate expanded water and additional fairway
     this.baseHeight = 600; // Base ground level
     this.heightMap = [];
     this.terrainGraphics = null;
-    this.segments = 600; // Increased segments for smoother curves
+    this.segments = 750; // Increased segments for smoother curves with extended width
     
     // Green properties
     this.greenWidth = 1024; // Approximately screen width
-    this.greenStartX = this.width - this.greenWidth - 200; // Position at end of 660-yard hole
+    this.greenStartX = 11800; // Position at reasonable distance (keep original 660-yard hole distance)
     this.greenEndX = this.greenStartX + this.greenWidth;
     this.greenHeight = 25; // Reduced elevation for easier putting (was 50)
     this.greenSlopeWidth = 300; // Wider, gentler slopes (was 200)
@@ -186,6 +186,33 @@ export class Terrain {
            ballY >= this.waterLevel - 20; // Trigger collision slightly above water surface
   }
 
+  // Check if ball is in the target circle area (smallest circle)
+  isBallInTargetCircle(ballX, ballY) {
+    // Calculate center of the concentric circles (same as addGreenTexture method)
+    const centerX = this.greenStartX + (this.greenWidth / 2);
+    const centerY = this.getHeightAtX(centerX);
+    
+    const distanceToCenter = Math.sqrt(
+      Math.pow(ballX - centerX, 2) + 
+      Math.pow(ballY - centerY, 2)
+    );
+    
+    // Debug: Log when ball is close to target
+    if (distanceToCenter <= 50) {
+      console.log(`Ball distance to hole: ${Math.round(distanceToCenter)} pixels (need <= 30)`);
+    }
+    
+    // Target area is the smallest circle (increased to 30 pixel radius for easier testing)
+    return distanceToCenter <= 30;
+  }
+
+  // Get the center position of the target circle
+  getTargetCircleCenter() {
+    const centerX = this.greenStartX + (this.greenWidth / 2);
+    const centerY = this.getHeightAtX(centerX);
+    return { x: centerX, y: centerY };
+  }
+
   createTerrainGraphics() {
     this.terrainGraphics = this.scene.add.graphics();
     
@@ -312,14 +339,7 @@ export class Terrain {
       8 // Thin surface layer
     );
     
-    // Add water outline
-    waterGraphics.lineStyle(2, 0x0D47A1); // Dark blue outline
-    waterGraphics.strokeRect(
-      this.waterStartX, 
-      this.waterLevel, 
-      this.waterWidth, 
-      768 - this.waterLevel
-    );
+    // Removed water outline - no border around water hazard
   }
 
   addTerrainDetails() {

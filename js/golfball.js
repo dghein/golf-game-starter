@@ -5,6 +5,7 @@ export class GolfBall {
   constructor(scene, x = 200, y = 630) {
     this.scene = scene;
     this.hitRecently = false;
+    this.swooshPlayed = false;
     
     // Distance tracking
     this.startX = x;
@@ -23,6 +24,9 @@ export class GolfBall {
     this.isStabilized = false;
     this.stabilizedPosition = { x: x, y: y };
     
+    // Hole completion state
+    this.holeCompleted = false;
+    
     // Backspin properties
     this.hasBackspin = false;
     this.backspinApplied = false;
@@ -36,7 +40,10 @@ export class GolfBall {
     
     // Sound properties
     this.hitSound = null; // Will be set by GameScene
+    this.puttSound = null; // Will be set by GameScene
+    this.swooshSound = null; // Will be set by GameScene
     this.splashSound = null; // Will be set by GameScene
+    this.clapSound = null; // Will be set by GameScene
     
     // Camera callback properties
     this.onBallHitCallback = null; // Will be set by GameScene
@@ -97,9 +104,24 @@ export class GolfBall {
     this.hitSound = hitSound;
   }
 
+  // Set putt sound reference
+  setPuttSound(puttSound) {
+    this.puttSound = puttSound;
+  }
+
+  // Set swoosh sound reference
+  setSwooshSound(swooshSound) {
+    this.swooshSound = swooshSound;
+  }
+
   // Set splash sound reference
   setSplashSound(splashSound) {
     this.splashSound = splashSound;
+  }
+
+  // Set clap sound reference
+  setClapSound(clapSound) {
+    this.clapSound = clapSound;
   }
 
   // Set callback for when ball gets hit (for camera switching)
@@ -208,23 +230,45 @@ export class GolfBall {
       this.sprite.x, this.sprite.y
     );
 
-    // If player is close enough and swing follow-through animation is playing
-    if (distance < 80 && (player.anims.currentAnim?.key === 'swing' || player.anims.currentAnim?.key === 'swing_followthrough')) {
-      // Only hit the ball if it hasn't been hit recently
-      if (!this.hitRecently) {
-        const powerMultiplier = player.getCurrentPower();
-        
-        // Check for backspin (Ctrl + Wedge only)
-        const isBackspin = keys && keys.ctrl.isDown && 
-                          clubManager && clubManager.getCurrentClub() === 'wedge';
-        
-        this.hit(player, clubManager, powerMultiplier, isBackspin);
-        this.hitRecently = true;
-        
-        // Reset the hit flag after a short delay
-        this.scene.time.delayedCall(500, () => {
-          this.hitRecently = false;
-        });
+    // Check if player is swinging
+    const isSwinging = player.anims.currentAnim?.key === 'swing' || player.anims.currentAnim?.key === 'swing_followthrough';
+    
+    // Reset swoosh flag when player stops swinging
+    if (!isSwinging && this.swooshPlayed) {
+      this.swooshPlayed = false;
+    }
+    
+    if (isSwinging) {
+      // If player is close enough to hit the ball
+      if (distance < 80) {
+        // Only hit the ball if it hasn't been hit recently
+        if (!this.hitRecently) {
+          const powerMultiplier = player.getCurrentPower();
+          
+          // Check for backspin (Ctrl + Wedge only)
+          const isBackspin = keys && keys.ctrl.isDown && 
+                            clubManager && clubManager.getCurrentClub() === 'wedge';
+          
+          this.hit(player, clubManager, powerMultiplier, isBackspin);
+          this.hitRecently = true;
+          
+          // Prevent swoosh sound from playing during this swing since ball was hit
+          this.swooshPlayed = true;
+          
+          // Reset the hit flag after a short delay
+          this.scene.time.delayedCall(500, () => {
+            this.hitRecently = false;
+          });
+        }
+      } else {
+        // Player is swinging but too far from ball - play swoosh sound once per swing
+        // Only play swoosh if the ball wasn't hit recently (prevents swoosh when ball is hit)
+        if (!this.hitRecently && !this.swooshPlayed) {
+          if (this.swooshSound) {
+            this.swooshSound.play();
+          }
+          this.swooshPlayed = true;
+        }
       }
     }
   }
@@ -268,9 +312,17 @@ export class GolfBall {
     
     this.sprite.body.setVelocity(launchVelocityX, launchVelocityY);
     
-    // Play hit sound effect
-    if (this.hitSound) {
-      this.hitSound.play();
+    // Play appropriate sound effect based on club type
+    if (clubManager && clubManager.getCurrentClub() === 'putter') {
+      // Play putt sound for putter
+      if (this.puttSound) {
+        this.puttSound.play();
+      }
+    } else {
+      // Play regular hit sound for all other clubs
+      if (this.hitSound) {
+        this.hitSound.play();
+      }
     }
     
     // Trigger camera switch callback
@@ -328,6 +380,9 @@ export class GolfBall {
     this.hasBackspin = false;
     this.backspinApplied = false;
     this.sprite.body.setBounce(0.7); // Reset to normal bounce
+    
+    // Reset hole completion state
+    this.holeCompleted = false;
   }
 
   // Check if ball is moving (original method for backward compatibility)
@@ -431,7 +486,7 @@ export class GolfBall {
   updateDistance(deltaTime = 16) {
     if (!this.isTracking) return;
 
-    // Check for water hazard collision first
+    // Check for water hazard collision
     this.checkWaterCollision();
 
     // Calculate distance from starting position
@@ -442,6 +497,43 @@ export class GolfBall {
     // Stop tracking if ball has stably stopped
     if (this.isStablyStopped(deltaTime) && this.currentDistance > 0) {
       this.stopDistanceTracking();
+    }
+  }
+
+  // Check if ball has entered the target circle area
+  checkTargetCircleCollision() {
+    // Don't check if hole already completed
+    if (this.holeCompleted) {
+      return;
+    }
+    
+    if (this.terrain && this.terrain.isBallInTargetCircle(this.sprite.x, this.sprite.y)) {
+      console.log('HOLE COMPLETED! Ball entered target circle and disappeared!');
+      
+      // Mark hole as completed to prevent multiple triggers
+      this.holeCompleted = true;
+      
+      // Play celebration clap sound FIRST before doing anything else
+      if (this.clapSound) {
+        console.log('Playing clap sound...');
+        this.clapSound.play();
+      } else {
+        console.log('Clap sound not available!');
+      }
+      
+      // Stop the ball immediately
+      this.sprite.body.setVelocity(0, 0);
+      this.stopDistanceTracking();
+      
+      // Delay making ball invisible to ensure sound plays
+      this.scene.time.delayedCall(100, () => {
+        this.sprite.setVisible(false);
+        console.log('Ball made invisible after delay');
+      });
+      
+      // TODO: Add more celebration, score tracking, etc.
+      
+      return;
     }
   }
 

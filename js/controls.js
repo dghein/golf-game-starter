@@ -13,5 +13,6 @@ export function setupWASD(scene) {
     shift: Phaser.Input.Keyboard.KeyCodes.SHIFT,
     c: Phaser.Input.Keyboard.KeyCodes.C,
     r: Phaser.Input.Keyboard.KeyCodes.R,
+    p: Phaser.Input.Keyboard.KeyCodes.P,
   });
 }
