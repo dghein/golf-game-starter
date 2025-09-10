@@ -423,6 +423,9 @@ export default class GameScene extends Phaser.Scene {
     this.golfBall.updateDistance(this.game.loop.delta);
     this.updateDistanceUI();
     
+    // Always check for ball stabilization (even when not tracking distance)
+    this.golfBall.isStablyStopped(this.game.loop.delta);
+    
     // Check for target circle collision (runs every frame)
     this.golfBall.checkTargetCircleCollision();
     

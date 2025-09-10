@@ -166,6 +166,14 @@ export class GolfBall {
       return;
     }
     
+    const vel = this.sprite.body.velocity;
+    const horizontalVel = Math.abs(vel.x);
+    
+    // Don't apply friction when horizontal movement is very low - let ball stabilize
+    if (horizontalVel < 12) {
+      return;
+    }
+    
     // Check if ball is on terrain
     const isOnGround = this.isOnTerrain();
     
@@ -393,40 +401,49 @@ export class GolfBall {
   
   // More stable method to check if ball has truly stopped
   isStablyStopped(deltaTime) {
-    const currentPos = { x: this.sprite.x, y: this.sprite.y };
+    // If ball is already stabilized, don't run checks - just return true
+    if (this.isStabilized) {
+      return true;
+    }
+    
     const vel = this.sprite.body.velocity;
     
-    // Check if velocity is very low
-    const isVelocityLow = Math.abs(vel.x) < 5 && Math.abs(vel.y) < 5;
-    
-    // Check if position hasn't changed much
-    const positionDelta = Math.sqrt(
-      Math.pow(currentPos.x - this.lastPosition.x, 2) + 
-      Math.pow(currentPos.y - this.lastPosition.y, 2)
-    );
-    const isPositionStable = positionDelta < 3; // Less than 3 pixels movement
-    
-    if (isVelocityLow && isPositionStable) {
-      this.stableStopTimer += deltaTime;
-      this.positionStableCount++;
-    } else {
+    // If ball is flying high (Y velocity > 100), skip stabilization checks entirely
+    if (Math.abs(vel.y) > 100) {
+      // Reset timers since ball is clearly in flight
       this.stableStopTimer = 0;
       this.positionStableCount = 0;
+      return false;
     }
     
-    // Update last position
-    this.lastPosition = { x: currentPos.x, y: currentPos.y };
+    // Focus on HORIZONTAL movement - that's what matters for a stopped golf ball
+    const horizontalVel = Math.abs(vel.x);
+    const verticalVel = Math.abs(vel.y);
     
-    // Ball is considered stably stopped after being stable for the threshold time
-    const isStablyStopped = this.stableStopTimer >= this.stableStopThreshold && this.positionStableCount > 30;
-    
-    // Stabilize the ball when it's determined to be stopped
-    if (isStablyStopped && !this.isStabilized) {
+    // IMMEDIATE stabilization when horizontal movement stops
+    if (horizontalVel < 8) {
+      // Ball has essentially stopped rolling - stabilize immediately
       this.stabilizeBall();
-      console.log('Ball stabilized - no more vibration');
+      console.log(`Ball stabilized - horizontal movement stopped (hVel: ${Math.round(horizontalVel)}, vVel: ${Math.round(verticalVel)})`);
+      return true;
     }
     
-    return isStablyStopped;
+    // For balls with low horizontal movement, use timer-based approach
+    if (horizontalVel < 15) {
+      this.stableStopTimer += deltaTime;
+      
+      // Very short wait time when horizontal movement is low
+      if (this.stableStopTimer >= 150) {
+        this.stabilizeBall();
+        console.log(`Ball stabilized after brief wait - low horizontal movement (hVel: ${Math.round(horizontalVel)})`);
+        return true;
+      }
+    } else {
+      // Reset timer if ball is still rolling horizontally
+      this.stableStopTimer = 0;
+    }
+    
+    return false;
   }
   
   // Stabilize the ball to stop all vibration
@@ -641,9 +658,16 @@ export class GolfBall {
       return;
     }
 
+    const currentVel = this.sprite.body.velocity;
+    const horizontalVel = Math.abs(currentVel.x);
+    
+    // Don't apply terrain physics when horizontal movement is low - let ball stabilize
+    if (horizontalVel < 12) {
+      return;
+    }
+
     const ballBottom = this.sprite.y + this.groundRadius;
     const terrainHeight = this.terrain.getHeightAtX(this.sprite.x);
-    const currentVel = this.sprite.body.velocity;
     
     // Only apply terrain physics if ball is significantly below terrain
     // and not flying upward (to allow proper ball flight)
@@ -672,11 +696,13 @@ export class GolfBall {
     }
     
     // Completely separate, very gentle slope influence system
-    if (Math.abs(currentVel.x) < 200 && Math.abs(currentVel.x) > 5) {
+    // Don't apply slope forces to stabilized balls or balls that are very slow
+    // Much more restrictive - only apply to balls moving at reasonable speed
+    if (Math.abs(currentVel.x) < 150 && Math.abs(currentVel.x) > 50 && !this.isStabilized) {
       const slope = this.terrain.getSlopeAtX(this.sprite.x);
       if (Math.abs(slope) > 0.02) {
         // Very minimal slope influence
-        const slopeForce = slope * 8;
+        const slopeForce = slope * 3; // Even further reduced force
         this.sprite.body.setVelocityX(currentVel.x + slopeForce);
       }
     }
