@@ -213,7 +213,7 @@ export class GolfBall {
     const horizontalVel = Math.abs(vel.x);
     
     // Don't apply friction when horizontal movement is very low - let ball stabilize
-    if (horizontalVel < 12) {
+    if (horizontalVel < 18) {
       return;
     }
     
@@ -464,7 +464,7 @@ export class GolfBall {
     const verticalVel = Math.abs(vel.y);
     
     // IMMEDIATE stabilization when horizontal movement stops
-    if (horizontalVel < 8) {
+    if (horizontalVel < 15) {
       // Check if ball is on terrain before stabilizing
       if (this.terrain) {
         const terrainHeight = this.terrain.getHeightAtX(this.sprite.x);
@@ -876,7 +876,7 @@ export class GolfBall {
     
     // Don't apply terrain physics when horizontal movement is low - let ball stabilize
     // But always check for fall-through prevention
-    if (horizontalVel < 12) {
+    if (horizontalVel < 20) {
       // Still check if ball is falling through terrain
       const ballBottom = this.sprite.y + this.groundRadius;
       const terrainHeight = this.terrain.getHeightAtX(this.sprite.x);

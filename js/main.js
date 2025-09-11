@@ -1,5 +1,6 @@
 import Hole1Scene from './scenes/GameScene.js'; // Will be renamed to Hole1Scene.js
 import Hole2Scene from './scenes/Hole2Scene.js';
+import Hole3Scene from './scenes/Hole3Scene.js';
 import { courseManager } from './CourseManager.js';
 
 const config = {
@@ -7,7 +8,7 @@ const config = {
   width: 1024,
   height: 768,
   backgroundColor: '#4CAF50',
-  scene: [Hole1Scene, Hole2Scene],
+  scene: [Hole1Scene, Hole2Scene, Hole3Scene],
   physics: {
     default: 'arcade',
     arcade: {
@@ -24,32 +25,35 @@ window.switchToHole = function(holeNumber) {
   if (courseManager.gotoHole(holeNumber)) {
     const sceneName = courseManager.getCurrentSceneName();
     
-    // Check if the scene exists
-    const sceneExists = game.scene.scenes.find(scene => scene.sys.config === sceneName);
-    
-    if (sceneExists) {
-      // Stop current scene and start the target scene
-      const currentScene = game.scene.getScene('Hole1Scene') || game.scene.getScene('Hole2Scene');
-      if (currentScene && currentScene.scene.isActive()) {
-        currentScene.scene.start(sceneName);
+      // Check if the scene exists
+      const sceneExists = game.scene.scenes.find(scene => scene.sys.config === sceneName);
+      
+      if (sceneExists) {
+        // Stop current scene and start the target scene
+        const currentScene = game.scene.getScene('Hole1Scene') || game.scene.getScene('Hole2Scene') || game.scene.getScene('Hole3Scene');
+        if (currentScene && currentScene.scene.isActive()) {
+          currentScene.scene.start(sceneName);
+        } else {
+          // If no active scene, just start the target scene
+          game.scene.start(sceneName);
+        }
+        console.log(`Switched to ${sceneName}`);
       } else {
-        // If no active scene, just start the target scene
-        game.scene.start(sceneName);
+        // Scene doesn't exist, fall back to available scenes
+        if (holeNumber === 1) {
+          game.scene.start('Hole1Scene');
+          console.log('Switched to Hole1Scene');
+        } else if (holeNumber === 2) {
+          game.scene.start('Hole2Scene');
+          console.log('Switched to Hole2Scene');
+        } else if (holeNumber === 3) {
+          game.scene.start('Hole3Scene');
+          console.log('Switched to Hole3Scene');
+        } else {
+          console.warn(`Scene ${sceneName} not implemented yet. Only Holes 1, 2, and 3 are available.`);
+          console.log('Available scenes: Hole1Scene, Hole2Scene, Hole3Scene');
+        }
       }
-      console.log(`Switched to ${sceneName}`);
-    } else {
-      // Scene doesn't exist, fall back to available scenes
-      if (holeNumber === 1) {
-        game.scene.start('Hole1Scene');
-        console.log('Switched to Hole1Scene');
-      } else if (holeNumber === 2) {
-        game.scene.start('Hole2Scene');
-        console.log('Switched to Hole2Scene');
-      } else {
-        console.warn(`Scene ${sceneName} not implemented yet. Only Hole 1 and Hole 2 are available.`);
-        console.log('Available scenes: Hole1Scene, Hole2Scene');
-      }
-    }
   }
 };
 

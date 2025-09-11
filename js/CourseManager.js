@@ -1,10 +1,10 @@
 /**
- * CourseManager - Manages progression through 18-hole golf course
+ * CourseManager - Manages progression through 3-hole golf course
  */
 export class CourseManager {
   constructor() {
     this.currentHole = 1;
-    this.totalHoles = 18;
+    this.totalHoles = 3;
     this.scores = new Array(this.totalHoles).fill(0); // Store scores for each hole
     this.totalScore = 0;
     
@@ -12,22 +12,7 @@ export class CourseManager {
     this.yardages = [
       580, // Hole 1 - Par 5 (>500 yards) - matches actual terrain layout (11600px ÷ 20px/yard = 580y)
       175, // Hole 2 - Par 3 - custom shorter hole with pin at 175 yards
-      420, // Hole 3 - Par 4 (230-500 yards)
-      350, // Hole 4 - Par 4
-      160, // Hole 5 - Par 3
-      480, // Hole 6 - Par 4
-      540, // Hole 7 - Par 5
-      200, // Hole 8 - Par 3
-      380, // Hole 9 - Par 4
-      450, // Hole 10 - Par 4
-      170, // Hole 11 - Par 3
-      580, // Hole 12 - Par 5
-      320, // Hole 13 - Par 4
-      190, // Hole 14 - Par 3
-      410, // Hole 15 - Par 4
-      560, // Hole 16 - Par 5
-      150, // Hole 17 - Par 3
-      440  // Hole 18 - Par 4
+      300  // Hole 3 - Par 4 - basic terrain with green near the end
     ];
     
     // Calculate par based on yardage
