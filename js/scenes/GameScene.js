@@ -14,6 +14,7 @@ export default class Hole1Scene extends Phaser.Scene {
 
   preload() {
     this.load.image("sky", "assets/course/sky.png");
+    this.load.image("flag", "assets/course/flag.png");
     for (let i = 0; i < 2; i++) {
       this.load.image(
         `golfer_walking_${i}`,
@@ -58,6 +59,9 @@ export default class Hole1Scene extends Phaser.Scene {
 
     // Create terrain system with green
     this.terrain = new Terrain(this);
+
+    // Create flag at hole position
+    this.createFlag();
 
     // Create animations
     createGolferAnimations(this);
@@ -679,6 +683,24 @@ export default class Hole1Scene extends Phaser.Scene {
     
     // Track ball movement state for next frame
     this.ballWasMoving = ballIsMoving;
+  }
+
+  // Create flag at hole position
+  createFlag() {
+    const pinPosition = this.terrain.getPinPosition();
+    
+    // Get the terrain height at the pin position to place flag bottom on ground
+    const terrainHeight = this.terrain.getHeightAtX(pinPosition.x);
+    
+    // Create flag sprite positioned 10 pixels below terrain level
+    this.flag = this.add.sprite(pinPosition.x, terrainHeight + 10, "flag");
+    
+    // Set flag properties
+    this.flag.setOrigin(0.5, 1); // Bottom-center origin so flag sits on ground
+    this.flag.setDepth(10); // Above other game elements
+    this.flag.setScale(0.8); // Slightly smaller for better proportion
+    
+    console.log(`Flag created at position: x=${Math.round(pinPosition.x)}, y=${Math.round(terrainHeight + 10)} (10px below terrain)`);
   }
 
 }
