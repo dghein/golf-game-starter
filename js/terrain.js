@@ -519,9 +519,32 @@ export class Terrain {
     // Clamp x to terrain bounds
     x = Math.max(0, Math.min(x, this.width));
     
-    // Check if position is in water hazard - return much lower height so ball falls in
+    // Debug logging for green area
+    if (x >= this.greenStartX - this.greenSlopeWidth && x <= this.greenEndX + this.greenSlopeWidth) {
+      console.log(`TERRAIN HEIGHT DEBUG: x=${Math.round(x)}, inGreenComplex=${this.isInGreenComplex(x)}, inGreenArea=${this.isInGreenArea(x)}`);
+    }
+    
+    // Check if position is in water hazard - return actual terrain height for proper collision
     if (x >= this.waterStartX && x <= this.waterEndX) {
-      return this.waterLevel + 100; // Return height well below water surface so ball sinks
+      // Return the actual terrain height at this position, not a fake low height
+      // The water collision detection will handle the water penalty
+      const segmentWidth = this.width / this.segments;
+      const index = Math.floor(x / segmentWidth);
+      
+      if (index >= this.heightMap.length - 1) {
+        return this.heightMap[this.heightMap.length - 1].y;
+      }
+      if (index < 0) {
+        return this.heightMap[0].y;
+      }
+      
+      const point1 = this.heightMap[index];
+      const point2 = this.heightMap[index + 1];
+      const localX = x - point1.x;
+      const segmentLength = point2.x - point1.x;
+      const ratio = segmentLength > 0 ? localX / segmentLength : 0;
+      
+      return point1.y + (point2.y - point1.y) * ratio;
     }
     
     // Find the closest terrain points
@@ -569,11 +592,27 @@ export class Terrain {
     const rise = point2.y - point1.y;
     const run = point2.x - point1.x;
     
+    // Debug logging for steep slopes
+    if (Math.abs(rise) > 50) {
+      console.log(`SLOPE CALC DEBUG: x=${Math.round(point1.x)}, rise=${Math.round(rise)}, run=${Math.round(run)}, slope=${(rise/run).toFixed(3)}`);
+    }
+    
     // For very steep slopes (like the elevated green approach), use a larger sample
     if (Math.abs(rise) > 20 && run > 0) {
       // Look ahead further for steep terrain
       const lookAhead = Math.min(5, this.heightMap.length - index - 1);
       if (lookAhead > 1) {
+        const farPoint = this.heightMap[index + lookAhead];
+        const farRise = farPoint.y - point1.y;
+        const farRun = farPoint.x - point1.x;
+        return farRun !== 0 ? farRise / farRun : rise / run;
+      }
+    }
+    
+    // For extremely steep slopes (like green approach), use even larger sample
+    if (Math.abs(rise) > 100 && run > 0) {
+      const lookAhead = Math.min(10, this.heightMap.length - index - 1);
+      if (lookAhead > 2) {
         const farPoint = this.heightMap[index + lookAhead];
         const farRise = farPoint.y - point1.y;
         const farRun = farPoint.x - point1.x;

@@ -451,7 +451,7 @@ export class GolfBall {
         
         // Check terrain slope - don't stabilize on steep slopes
         const slope = this.terrain.getSlopeAtX(this.sprite.x);
-        const isOnSteepSlope = Math.abs(slope) > 0.05; // Steep slope threshold
+        const isOnSteepSlope = Math.abs(slope) > 0.05; // Lower threshold - any significant slope prevents stabilization
         
         // Only stabilize if ball is close to terrain surface AND not on steep slope
         if (ballBottom >= terrainHeight - 8 && !isOnSteepSlope) {
@@ -484,7 +484,7 @@ export class GolfBall {
           
           // Check terrain slope - don't stabilize on steep slopes
           const slope = this.terrain.getSlopeAtX(this.sprite.x);
-          const isOnSteepSlope = Math.abs(slope) > 0.05; // Steep slope threshold
+          const isOnSteepSlope = Math.abs(slope) > 0.05; // Lower threshold - any significant slope prevents stabilization
           
           // Only stabilize if ball is close to terrain surface AND not on steep slope
           if (ballBottom >= terrainHeight - 5 && !isOnSteepSlope) {
@@ -845,29 +845,88 @@ export class GolfBall {
     
     // Apply terrain physics if ball is significantly below terrain
     // and not flying upward (to allow proper ball flight)
-    if (ballBottom > terrainHeight + 5 && currentVel.y >= 0) {
+    // Use much larger threshold for steep slopes to prevent falling through
+    const slope = this.terrain.getSlopeAtX(this.sprite.x);
+    const isOnSteepSlope = Math.abs(slope) > 0.1; // Much steeper threshold
+    const isOnVerySteepSlope = Math.abs(slope) > 0.5; // Extremely steep slopes
+    const collisionThreshold = isOnVerySteepSlope ? 50 : isOnSteepSlope ? 30 : 5; // Much larger threshold for steep slopes
+    
+    // Debug logging for steep slopes
+    if (Math.abs(slope) > 0.3) {
+      console.log(`STEEP SLOPE DETECTED: x=${Math.round(this.sprite.x)}, slope=${slope.toFixed(3)}, ballBottom=${Math.round(ballBottom)}, terrainHeight=${Math.round(terrainHeight)}, threshold=${collisionThreshold}`);
+    }
+    
+    // Always apply terrain physics if ball is below terrain, regardless of velocity
+    if (ballBottom > terrainHeight + collisionThreshold) {
       // Calculate target position
       const targetY = terrainHeight - this.groundRadius;
       const currentY = this.sprite.y;
       const yDifference = targetY - currentY;
       
-      // Adjust for significant differences to eliminate vibration
-      if (Math.abs(yDifference) > 5) {
-        // Gentle interpolation to terrain surface
-        const adjustmentSpeed = 0.3;
+      // Different behavior based on slope steepness
+      if (isOnVerySteepSlope) {
+        // Very steep slopes: aggressive bounce and roll-back behavior
+        this.sprite.setY(targetY); // Snap to terrain surface
+        
+        // Apply realistic bounce physics based on slope angle
+        const slopeAngle = Math.atan(Math.abs(slope));
+        const bounceFactor = Math.sin(slopeAngle) * 0.8; // Stronger bounce for more roll-back
+        
+        // Bounce the ball off the slope - more aggressive bouncing
+        if (currentVel.y > 30) { // Lower threshold for bouncing
+          this.sprite.body.setVelocityY(currentVel.y * -bounceFactor);
+          console.log(`STEEP SLOPE BOUNCE: slope=${slope.toFixed(3)}, bounceFactor=${bounceFactor.toFixed(2)}`);
+        }
+        
+        // Much stronger horizontal force to encourage roll-back
+        const slopeForce = slope * 35; // Increased from 20 to 35 for more roll-back
+        this.sprite.body.setVelocityX(currentVel.x + slopeForce);
+        
+        // Add extra downward force to make uphill movement harder
+        if (slope > 0) { // Going uphill
+          this.sprite.body.setVelocityY(currentVel.y + Math.abs(slope) * 15); // Extra downward force
+          console.log(`UPHILL RESISTANCE: Added ${Math.abs(slope) * 15} downward force`);
+        }
+        
+      } else if (isOnSteepSlope) {
+        // Moderate steep slopes: more challenging with stronger slope influence
+        const adjustmentSpeed = 0.5;
         const newY = currentY + yDifference * adjustmentSpeed;
         this.sprite.setY(newY);
         
-        // Only apply bounce if ball is falling very fast
-        if (currentVel.y > 200) {
-          // Gentle bounce
-          this.sprite.body.setVelocityY(currentVel.y * -0.3);
-        } else {
-          // Ball is rolling - reduce vertical movement
-          this.sprite.body.setVelocityY(currentVel.y * 0.7);
+        // Apply stronger slope forces for more roll-back
+        const slopeForce = slope * 25; // Increased from 15 to 25
+        this.sprite.body.setVelocityX(currentVel.x + slopeForce);
+        
+        // More aggressive vertical velocity reduction
+        this.sprite.body.setVelocityY(currentVel.y * 0.4); // Reduced from 0.6 to 0.4
+        
+        // Add uphill resistance for moderate slopes too
+        if (slope > 0) { // Going uphill
+          this.sprite.body.setVelocityY(currentVel.y + Math.abs(slope) * 8); // Extra downward force
+        }
+        
+      } else {
+        // Normal terrain: gentle adjustment
+        if (Math.abs(yDifference) > 5) {
+          const adjustmentSpeed = 0.3;
+          const newY = currentY + yDifference * adjustmentSpeed;
+          this.sprite.setY(newY);
+          
+          // Only apply bounce if ball is falling very fast
+          if (currentVel.y > 200) {
+            this.sprite.body.setVelocityY(currentVel.y * -0.3);
+          } else {
+            this.sprite.body.setVelocityY(currentVel.y * 0.7);
+          }
         }
       }
+      
+      console.log(`TERRAIN PHYSICS: slope=${slope.toFixed(3)}, yDiff=${Math.round(yDifference)}, isVerySteep=${isOnVerySteepSlope}, isSteep=${isOnSteepSlope}`);
     }
+    
+    // Note: Removed continuous surface enforcement for steep slopes
+    // Steep slopes should allow bouncing and rolling behavior, not forced stabilization
     
     // Enhanced slope influence system for realistic ball rolling
     // Apply slope forces to rolling balls (not stabilized or flying)
@@ -877,25 +936,45 @@ export class GolfBall {
       // Apply slope forces based on steepness
       if (Math.abs(slope) > 0.01) {
         // Calculate slope force - positive slope pushes ball right, negative pushes left
-        // Make slope force stronger for steeper slopes
-        const slopeForce = slope * (Math.abs(slope) > 0.1 ? 15 : 8); // Stronger force on steep slopes
+        // Make slope force much stronger for very steep slopes to encourage roll-back
+        const slopeForce = slope * (Math.abs(slope) > 0.5 ? 45 : Math.abs(slope) > 0.1 ? 30 : 8); // Much stronger force for roll-back
         
         // Apply horizontal force based on slope
         this.sprite.body.setVelocityX(currentVel.x + slopeForce);
         
-        // Add some vertical component for steep slopes
-        if (Math.abs(slope) > 0.1) {
-          const verticalForce = Math.abs(slope) * 3; // Increased vertical force
-          if (slope > 0) {
-            // Uphill - reduce upward velocity
-            this.sprite.body.setVelocityY(currentVel.y - verticalForce);
-          } else {
-            // Downhill - add downward velocity
-            this.sprite.body.setVelocityY(currentVel.y + verticalForce);
-          }
+        // Add vertical component for all slopes, much stronger for steeper ones
+        const verticalForce = Math.abs(slope) * (Math.abs(slope) > 0.5 ? 12 : Math.abs(slope) > 0.1 ? 8 : 2);
+        if (slope > 0) {
+          // Uphill - much stronger resistance to make it harder to go up
+          this.sprite.body.setVelocityY(currentVel.y - verticalForce * 1.5); // Extra resistance uphill
+        } else {
+          // Downhill - add downward velocity (ball speeds up going down)
+          this.sprite.body.setVelocityY(currentVel.y + verticalForce);
         }
         
-        console.log(`Slope physics applied: slope=${slope.toFixed(3)}, force=${slopeForce.toFixed(2)}`);
+        // More aggressive minimum velocity enforcement for roll-back
+        if (Math.abs(slope) > 0.2 && Math.abs(currentVel.x) < 30) {
+          const minVelocity = slope > 0 ? 35 : -35; // Higher minimum velocity for more roll-back
+          this.sprite.body.setVelocityX(minVelocity);
+          console.log(`MINIMUM VELOCITY ENFORCED: slope=${slope.toFixed(3)}, minVel=${minVelocity}`);
+        }
+        
+        // Add momentum-based resistance - slower balls roll back more easily
+        const ballSpeed = Math.abs(currentVel.x);
+        if (slope > 0 && ballSpeed < 100) { // Going uphill and slow
+          const resistanceFactor = (100 - ballSpeed) / 100; // Higher resistance for slower balls
+          this.sprite.body.setVelocityX(currentVel.x * (1 - resistanceFactor * 0.3));
+          console.log(`MOMENTUM RESISTANCE: slow ball uphill, resistance=${resistanceFactor.toFixed(2)}`);
+        }
+        
+        // Force roll-back for very slow balls on steep uphill slopes
+        if (slope > 0.3 && ballSpeed < 50) {
+          // Almost guarantee roll-back for slow balls on steep slopes
+          this.sprite.body.setVelocityX(-Math.abs(slope) * 40); // Force backward movement
+          console.log(`FORCED ROLL-BACK: very slow ball on steep uphill, forced backward velocity`);
+        }
+        
+        console.log(`Slope physics applied: slope=${slope.toFixed(3)}, force=${slopeForce.toFixed(2)}, vForce=${verticalForce.toFixed(2)}`);
       }
     }
   }
