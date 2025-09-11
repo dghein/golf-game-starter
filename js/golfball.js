@@ -42,11 +42,16 @@ export class GolfBall {
     this.previousPosition = { x: x, y: y };
     this.approachDirection = 'right'; // Default direction (left to right)
     
+    // Bounce detection
+    this.previousY = y;
+    this.wasInAir = false;
+    
     // Sound properties
     this.hitSound = null; // Will be set by GameScene
     this.puttSound = null; // Will be set by GameScene
     this.swooshSound = null; // Will be set by GameScene
     this.splashSound = null; // Will be set by GameScene
+    this.bounceSound = null; // Will be set by GameScene
     this.clapSound = null; // Will be set by GameScene
     this.cheerSound = null; // Will be set by GameScene
     
@@ -141,6 +146,11 @@ export class GolfBall {
   // Set splash sound reference
   setSplashSound(splashSound) {
     this.splashSound = splashSound;
+  }
+
+  // Set bounce sound reference
+  setBounceSound(bounceSound) {
+    this.bounceSound = bounceSound;
   }
 
   // Set clap sound reference
@@ -703,11 +713,6 @@ export class GolfBall {
     if (this.terrain && this.terrain.isBallInBunker && this.terrain.isBallInBunker(this.sprite.x, this.sprite.y)) {
       console.log('Ball landed in bunker! Ball will be harder to hit from sand...');
       
-      // Play a subtle "thud" sound for landing in sand (could add sand sound later)
-      if (this.hitSound) {
-        this.hitSound.play({ volume: 0.3 }); // Quieter sound for sand landing
-      }
-      
       // Apply sand physics - reduce ball speed but keep it playable
       // Different clubs have different effectiveness in sand
       let horizontalReduction = 0.6; // Default 40% reduction
@@ -865,6 +870,9 @@ export class GolfBall {
 
     const currentVel = this.sprite.body.velocity;
     const horizontalVel = Math.abs(currentVel.x);
+    
+    // Check for bounce sound when ball hits terrain
+    this.checkBounceSound();
     
     // Don't apply terrain physics when horizontal movement is low - let ball stabilize
     // But always check for fall-through prevention
@@ -1053,6 +1061,32 @@ export class GolfBall {
     this.positionStableCount = 0;
     
     console.log(`Ball reset to position: x=${Math.round(ballX)}, y=${Math.round(ballY)} (terrain height: ${Math.round(terrainHeight)})`);
+  }
+  
+  // Check for bounce sound when ball hits terrain
+  checkBounceSound() {
+    if (!this.terrain || !this.bounceSound) return;
+    
+    const currentY = this.sprite.y;
+    const ballBottom = currentY + this.groundRadius;
+    const terrainHeight = this.terrain.getHeightAtX(this.sprite.x);
+    
+    // Check if ball is touching or very close to terrain
+    const isOnGround = ballBottom >= terrainHeight - 5 && ballBottom <= terrainHeight + 5;
+    
+    // Check if ball was previously in air and now on ground (bounce)
+    if (isOnGround && this.wasInAir) {
+      // Play bounce sound with volume based on impact speed
+      const impactSpeed = Math.abs(this.sprite.body.velocity.y);
+      const volume = Math.min(0.8, Math.max(0.2, impactSpeed / 200)); // Scale volume with impact speed
+      
+      this.bounceSound.play({ volume: volume });
+      console.log(`Bounce sound played - impact speed: ${Math.round(impactSpeed)}, volume: ${volume.toFixed(2)}`);
+    }
+    
+    // Update bounce detection state
+    this.wasInAir = !isOnGround;
+    this.previousY = currentY;
   }
   
   // Prevent ball from falling through terrain - emergency safety check

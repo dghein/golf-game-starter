@@ -34,6 +34,8 @@ export default class Hole1Scene extends Phaser.Scene {
     this.load.audio("clap", "assets/sounds/clap.mp3");
     this.load.audio("cheer", "assets/sounds/cheer.mp3");
     this.load.audio("swimming", "assets/sounds/swimming.mp3");
+    this.load.audio("bounce", "assets/sounds/bounce.mp3");
+    this.load.audio("background", "assets/sounds/background.mp3");
     
     // Debug: Log when sounds are loaded
     this.load.on('filecomplete-audio-clap', () => {
@@ -65,6 +67,11 @@ export default class Hole1Scene extends Phaser.Scene {
 
     // Create swimming sound early so it's available for player
     this.swimmingSound = this.sound.add("swimming", { volume: 0.6, loop: true });
+    this.bounceSound = this.sound.add("bounce", { volume: 0.4 });
+    
+    // Create and start background music
+    this.backgroundMusic = this.sound.add("background", { volume: 0.3, loop: true });
+    this.backgroundMusic.play();
 
     // Create player at terrain height
     const startX = 100;
@@ -96,6 +103,7 @@ export default class Hole1Scene extends Phaser.Scene {
     // Create and set splash sound for water hazard
     this.splashSound = this.sound.add("splash", { volume: 0.7 });
     this.golfBall.setSplashSound(this.splashSound);
+    this.golfBall.setBounceSound(this.bounceSound);
     
     // Create and set clap sound for hole completion
     this.clapSound = this.sound.add("clap", { volume: 0.8 });
