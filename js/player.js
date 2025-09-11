@@ -31,6 +31,9 @@ export class Player {
     this.sprite.on('animationcomplete', (anim) => {
       if (anim.key === 'swing' || anim.key === 'swing_followthrough') {
         this.isSwingInProgress = false;
+        // Return to walking animation to ensure clean state
+        this.sprite.play('walk');
+        console.log('Swing animation completed, returning to walk state');
       }
     });
 
@@ -245,8 +248,12 @@ export class Player {
 
   // Check if player is currently swinging
   isSwinging() {
+    // Use both the animation state and the swing progress flag for reliability
     const currentAnim = this.sprite.anims.currentAnim?.key;
-    return currentAnim === 'swing' || currentAnim === 'swing_followthrough';
+    const isAnimSwinging = currentAnim === 'swing' || currentAnim === 'swing_followthrough';
+    
+    // Return true only if both conditions are met
+    return this.isSwingInProgress && isAnimSwinging;
   }
 
   // Check if player is currently walking

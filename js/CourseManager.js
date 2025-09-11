@@ -73,9 +73,11 @@ export class CourseManager {
 
   // Record score for current hole
   recordScore(strokes) {
+    console.log(`Recording score for Hole ${this.currentHole}: ${strokes} strokes (Par ${this.getCurrentPar()})`);
     this.scores[this.currentHole - 1] = strokes;
     this.calculateTotalScore();
     console.log(`Hole ${this.currentHole} completed in ${strokes} strokes (Par ${this.getCurrentPar()})`);
+    console.log(`Current scores array:`, this.scores);
   }
 
   // Calculate total score
@@ -103,10 +105,13 @@ export class CourseManager {
       if (this.scores[i] > 0) { // Hole has been completed
         totalPar += this.par[i];
         completedScore += this.scores[i];
+        console.log(`Hole ${i + 1}: Par ${this.par[i]}, Score ${this.scores[i]}`);
       }
     }
     
-    return completedScore - totalPar;
+    const scoreRelativeToPar = completedScore - totalPar;
+    console.log(`Total Par: ${totalPar}, Total Score: ${completedScore}, Score to Par: ${scoreRelativeToPar}`);
+    return scoreRelativeToPar;
   }
 
   // Check if course is complete

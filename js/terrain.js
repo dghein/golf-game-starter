@@ -14,18 +14,18 @@ export class Terrain {
     this.greenWidth = 1024; // Approximately screen width
     this.greenStartX = 11800; // Position at reasonable distance (keep original 660-yard hole distance)
     this.greenEndX = this.greenStartX + this.greenWidth;
-    this.greenHeight = 25; // Reduced elevation for easier putting (was 50)
-    this.greenSlopeWidth = 300; // Wider, gentler slopes (was 200)
+    this.greenHeight = 460; // Extremely elevated green - 60% of screen height (768 * 0.6 = 460)
+    this.greenSlopeWidth = 500; // Wider slopes for dramatic elevation change
     
     // Pin/hole position (center of green)
     this.pinX = this.greenStartX + (this.greenWidth / 2);
     this.pinY = this.baseHeight - this.greenHeight;
     
-    // Water hazard properties (behind the green)
-    this.waterStartX = this.greenEndX + 50; // Start 50 pixels after green ends
-    this.waterWidth = 400; // Width of water hazard
+    // Water hazard properties (behind the green at bottom of slope)
+    // Water will be integrated into terrain graphics
+    this.waterStartX = this.greenEndX + 200; // Start further back to reach bottom of slope
+    this.waterWidth = 600; // Wider water hazard for dramatic effect
     this.waterEndX = this.waterStartX + this.waterWidth;
-    // Water level will be set after terrain generation
     
     // Generate the terrain height map
     this.generateTerrain();
@@ -33,11 +33,14 @@ export class Terrain {
     // Smooth the terrain for more natural curves
     this.smoothTerrain();
     
-    // Set water level to match the actual green surface height
-    this.waterLevel = this.getHeightAtX(this.greenEndX);
-    
     // Create visual representation
     this.createTerrainGraphics();
+    
+    // Add water hazard as integrated terrain area
+    this.addWaterOverlay();
+    
+    // Add bunker at 275 yards from start (275 * 20 = 5500 pixels)
+    this.addBunkerOverlay();
   }
 
   generateTerrain() {
@@ -63,7 +66,7 @@ export class Terrain {
       
       this.heightMap.push({
         x: x,
-        y: Math.max(height, 450), // Ensure terrain doesn't go too high (min y = 450)
+        y: Math.max(height, 200), // Allow terrain to go much higher for elevated green (min y = 200)
         isGreen: this.isInGreenArea(x)
       });
     }
@@ -181,9 +184,25 @@ export class Terrain {
 
   // Check if ball is in water hazard
   isBallInWater(ballX, ballY) {
-    return ballX >= this.waterStartX && 
-           ballX <= this.waterEndX && 
-           ballY >= this.waterLevel - 20; // Trigger collision slightly above water surface
+    if (!this.waterStartX || !this.waterEndX) return false;
+    
+    // Check if ball is in water area horizontally
+    const inWaterArea = ballX >= this.waterStartX && ballX <= this.waterEndX;
+    
+    if (!inWaterArea) return false;
+    
+    // For elevated green scenario, check if ball is at or below water level
+    // Use a more generous collision zone since water is at bottom of slope
+    return ballY >= this.waterLevel - 30; // More generous collision zone
+  }
+
+  // Check if ball is in bunker
+  isBallInBunker(ballX, ballY) {
+    if (!this.bunkerStartX || !this.bunkerEndX) return false;
+    
+    return ballX >= this.bunkerStartX && 
+           ballX <= this.bunkerEndX && 
+           ballY >= this.bunkerLevel - 20; // Trigger collision slightly above bunker surface
   }
 
   // Check if ball is in the target circle area (smallest circle)
@@ -244,9 +263,6 @@ export class Terrain {
     
     // Add green area overlay
     this.addGreenOverlay();
-    
-    // Add water hazard
-    this.addWaterHazard();
     
     // Add outline
     this.terrainGraphics.lineStyle(2, 0x388E3C); // Darker green outline
@@ -319,30 +335,161 @@ export class Terrain {
     }
   }
 
-  addWaterHazard() {
-    // Create water hazard graphics
+  addWaterOverlay() {
+    // Add water hazard as integrated terrain area (blue colored)
+    const waterWidth = this.waterWidth; // Use the configured width
+    const waterStartX = this.waterStartX; // Use the configured start position
+    const waterEndX = this.waterEndX;
+    
+    // Create water area graphics
     const waterGraphics = this.scene.add.graphics();
-    waterGraphics.setDepth(10); // Ensure water appears above terrain
+    waterGraphics.setDepth(2); // Same depth as green overlay
     waterGraphics.fillStyle(0x1976D2); // Blue water color
     
-    // Draw rectangular water hazard
-    waterGraphics.fillRect(
-      this.waterStartX, 
-      this.waterLevel, 
-      this.waterWidth, 
-      768 - this.waterLevel // Extend to bottom of screen
+    // Find water area points from height map
+    const waterPoints = this.heightMap.filter(point => 
+      point.x >= waterStartX && point.x <= waterEndX
     );
     
-    // Add water surface with lighter blue
-    waterGraphics.fillStyle(0x42A5F5); // Lighter blue for surface
-    waterGraphics.fillRect(
-      this.waterStartX, 
-      this.waterLevel, 
-      this.waterWidth, 
-      8 // Thin surface layer
+    if (waterPoints.length > 0) {
+      waterGraphics.beginPath();
+      
+      // Start from bottom of water area
+      waterGraphics.moveTo(waterPoints[0].x, 768);
+      
+      // Draw water surface following terrain
+      waterPoints.forEach((point, index) => {
+        if (index === 0) {
+          waterGraphics.lineTo(point.x, point.y);
+        } else {
+          waterGraphics.lineTo(point.x, point.y);
+        }
+      });
+      
+      // Close the water area
+      const lastPoint = waterPoints[waterPoints.length - 1];
+      waterGraphics.lineTo(lastPoint.x, 768);
+      waterGraphics.lineTo(waterPoints[0].x, 768);
+      waterGraphics.closePath();
+      waterGraphics.fillPath();
+      
+      // Add water texture/ripples
+      this.addWaterTexture(waterGraphics, waterPoints);
+    }
+    
+    // Store water area properties for collision detection
+    // For elevated green, set water level to be slightly above the terrain at water position
+    // This ensures balls rolling down the slope will hit the water
+    const terrainAtWater = waterPoints.length > 0 ? waterPoints[Math.floor(waterPoints.length / 2)].y : 600;
+    this.waterLevel = terrainAtWater - 10; // Set water 10 pixels above terrain for proper collision
+    
+    console.log(`Hole 1 Water Hazard Configuration:`);
+    console.log(`Water starts at: ${waterStartX} pixels (${waterStartX/20} yards)`);
+    console.log(`Water ends at: ${waterEndX} pixels (${waterEndX/20} yards)`);
+    console.log(`Terrain height at water: ${terrainAtWater} pixels`);
+    console.log(`Water level set to: ${this.waterLevel} pixels`);
+  }
+
+  addWaterTexture(graphics, waterPoints) {
+    // Add water texture and ripples
+    graphics.lineStyle(1, 0x42A5F5, 0.4); // Lighter blue for ripples
+    
+    const startX = waterPoints[0].x;
+    const endX = waterPoints[waterPoints.length - 1].x;
+    
+    // Add water ripple lines
+    for (let x = startX; x < endX; x += 25) {
+      const height1 = this.getHeightAtX(x);
+      const height2 = this.getHeightAtX(x + 20);
+      
+      graphics.moveTo(x, height1);
+      graphics.lineTo(x + 20, height2);
+    }
+    
+    // Add surface ripples
+    graphics.lineStyle(1, 0x64B5F6, 0.3); // Even lighter blue for surface
+    for (let x = startX; x < endX; x += 30) {
+      const height = this.getHeightAtX(x);
+      const rippleOffset = Math.sin(x * 0.01) * 3;
+      graphics.lineBetween(x + rippleOffset, height + 2, x + 15 + rippleOffset, height + 3);
+    }
+    
+    graphics.strokePath();
+  }
+
+  addBunkerOverlay() {
+    // Add bunker as integrated terrain area (brown/sand colored)
+    const bunkerWidth = 600; // 30 yards wide (reduced from 40 yards)
+    const bunkerStartX = 5500; // 275 yards from start (275 * 20 = 5500 pixels)
+    const bunkerEndX = bunkerStartX + bunkerWidth;
+    
+    // Create bunker area graphics
+    const bunkerGraphics = this.scene.add.graphics();
+    bunkerGraphics.setDepth(2); // Same depth as green and water overlays
+    bunkerGraphics.fillStyle(0xD2B48C); // Tan/sand color
+    
+    // Find bunker area points from height map
+    const bunkerPoints = this.heightMap.filter(point => 
+      point.x >= bunkerStartX && point.x <= bunkerEndX
     );
     
-    // Removed water outline - no border around water hazard
+    if (bunkerPoints.length > 0) {
+      bunkerGraphics.beginPath();
+      
+      // Start from bottom of bunker area
+      bunkerGraphics.moveTo(bunkerPoints[0].x, 768);
+      
+      // Draw bunker surface following terrain
+      bunkerPoints.forEach((point, index) => {
+        if (index === 0) {
+          bunkerGraphics.lineTo(point.x, point.y);
+        } else {
+          bunkerGraphics.lineTo(point.x, point.y);
+        }
+      });
+      
+      // Close the bunker area
+      const lastPoint = bunkerPoints[bunkerPoints.length - 1];
+      bunkerGraphics.lineTo(lastPoint.x, 768);
+      bunkerGraphics.lineTo(bunkerPoints[0].x, 768);
+      bunkerGraphics.closePath();
+      bunkerGraphics.fillPath();
+      
+      // Add bunker texture/sand details
+      this.addBunkerTexture(bunkerGraphics, bunkerPoints);
+    }
+    
+    // Store bunker area properties for collision detection
+    this.bunkerStartX = bunkerStartX;
+    this.bunkerEndX = bunkerEndX;
+    this.bunkerLevel = bunkerPoints.length > 0 ? bunkerPoints[Math.floor(bunkerPoints.length / 2)].y : 600;
+  }
+
+  addBunkerTexture(graphics, bunkerPoints) {
+    // Add sand texture and details
+    graphics.lineStyle(1, 0xBC9A6A, 0.4); // Darker sand color for texture
+    
+    const startX = bunkerPoints[0].x;
+    const endX = bunkerPoints[bunkerPoints.length - 1].x;
+    
+    // Add sand grain texture
+    for (let x = startX; x < endX; x += 20) {
+      const height1 = this.getHeightAtX(x);
+      const height2 = this.getHeightAtX(x + 15);
+      
+      graphics.moveTo(x, height1);
+      graphics.lineTo(x + 15, height2);
+    }
+    
+    // Add sand ripple lines
+    graphics.lineStyle(1, 0xE6D3A3, 0.3); // Lighter sand color for ripples
+    for (let x = startX; x < endX; x += 30) {
+      const height = this.getHeightAtX(x);
+      const rippleOffset = Math.sin(x * 0.01) * 2;
+      graphics.lineBetween(x + rippleOffset, height + 5, x + 20 + rippleOffset, height + 6);
+    }
+    
+    graphics.strokePath();
   }
 
   addTerrainDetails() {
@@ -421,6 +568,18 @@ export class Terrain {
     // Calculate slope as rise over run
     const rise = point2.y - point1.y;
     const run = point2.x - point1.x;
+    
+    // For very steep slopes (like the elevated green approach), use a larger sample
+    if (Math.abs(rise) > 20 && run > 0) {
+      // Look ahead further for steep terrain
+      const lookAhead = Math.min(5, this.heightMap.length - index - 1);
+      if (lookAhead > 1) {
+        const farPoint = this.heightMap[index + lookAhead];
+        const farRise = farPoint.y - point1.y;
+        const farRun = farPoint.x - point1.x;
+        return farRun !== 0 ? farRise / farRun : rise / run;
+      }
+    }
     
     return run !== 0 ? rise / run : 0;
   }

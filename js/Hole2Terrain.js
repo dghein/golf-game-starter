@@ -1,8 +1,8 @@
-import { WaterHazardMixin } from './WaterHazard.js';
+// Water hazard and bunker are now integrated directly into terrain
 
 /**
  * Hole2Terrain - Custom terrain for Hole 2: 250 yards total, hole at 175 yards
- * Example of using the reusable water hazard system
+ * Example of using integrated water hazard and bunker systems
  */
 export class Hole2Terrain {
   constructor(scene) {
@@ -17,15 +17,14 @@ export class Hole2Terrain {
     this.greenWidth = 400; // Smaller green for shorter hole
     this.greenStartX = 3400; // 175 yards * 20 pixels/yard = 3500, minus half green width = 3300
     this.greenEndX = this.greenStartX + this.greenWidth;
-    this.greenHeight = 20; // Slight elevation for the green
+    this.greenHeight = 20; // Elevation above surrounding terrain
     this.greenSlopeWidth = 200; // Gentler slopes
     
     // Pin/hole position (center of green at 175 yards)
     this.pinX = 3500; // Exactly 175 yards from start (175 * 20 = 3500)
-    this.pinY = this.baseHeight - this.greenHeight;
+    this.pinY = this.baseHeight - this.greenHeight; // Green is above base height
     
-    // Initialize water hazard system
-    this.initWaterHazards();
+    // Water hazard is now integrated into terrain
     
     // Generate the terrain height map
     this.generateTerrain();
@@ -36,8 +35,10 @@ export class Hole2Terrain {
     // Create visual representation first
     this.createTerrainGraphics();
     
-    // Add water hazard AFTER terrain is rendered to ensure proper layering
-    this.addWaterHazardAfterTerrain();
+    // Water hazard is now integrated into terrain via addWaterOverlay()
+    
+    // Add bunker as integrated terrain area
+    this.addBunkerOverlay();
   }
 
   addWaterHazardAfterTerrain() {
@@ -54,35 +55,53 @@ export class Hole2Terrain {
     console.log(`Water starts at: ${waterStartX} pixels (${waterStartX/20} yards)`);
     console.log(`Water ends at: ${waterEndX} pixels (${waterEndX/20} yards)`);
     console.log(`Water width: ${waterWidth} pixels (${waterWidth/20} yards)`);
-    console.log(`Water level: ${terrainHeightAtWater - 20} pixels`);
+    console.log(`Water level: ${terrainHeightAtWater} pixels (flush with terrain)`);
     
     this.addWaterHazard({
       startX: waterStartX,
       width: waterWidth, // 50 yards (reduced from 100 yards)
-      level: terrainHeightAtWater - 20 // 20 pixels below terrain surface
+      level: terrainHeightAtWater // Flush with terrain surface
     });
   }
 
   generateTerrain() {
-    // Create a height map using gentle sine waves for smooth rolling hills
+    // Create a height map with flat elevated tee and dramatic downhill slope
     const segmentWidth = this.width / this.segments;
+    
+    // Terrain elevation parameters
+    const teeElevation = 300; // Very high flat tee area (300 pixels above base)
+    const teeFlatLength = 1000; // Flat tee area extends 50 yards (1000 pixels)
+    const greenElevation = 20; // Green area (20 pixels above base - above water level)
     
     for (let i = 0; i <= this.segments; i++) {
       const x = i * segmentWidth;
+      let height;
       
-      // Gentler terrain for shorter hole
-      const wave1 = Math.sin(x * 0.001) * 40;  // Gentle rolling hills
-      const wave2 = Math.sin(x * 0.002) * 20;  // Smaller undulations
+      if (x <= teeFlatLength) {
+        // Flat elevated tee area - completely flat
+        height = this.baseHeight - teeElevation;
+      } else {
+        // Dramatic downhill slope from end of flat tee to green
+        const slopeStartX = teeFlatLength;
+        const slopeLength = this.width - slopeStartX;
+        const elevationDrop = teeElevation - greenElevation;
+        const slopeProgress = (x - slopeStartX) / slopeLength;
+        
+        // Use a more dramatic curve for the downhill slope
+        const dramaticCurve = Math.pow(slopeProgress, 0.7); // Steeper initial drop
+        height = this.baseHeight - teeElevation + (elevationDrop * dramaticCurve);
+        
+        // Add minimal undulations only in the slope area
+        const wave1 = Math.sin(x * 0.001) * 8;  // Very small waves
+        height += wave1;
+      }
       
-      // Calculate base height
-      let height = this.baseHeight - (wave1 + wave2);
-      
-      // Add green elevation
+      // Apply green elevation (green will be lower than surrounding terrain)
       height = this.applyGreenElevation(x, height);
       
       this.heightMap.push({
         x: x,
-        y: Math.max(height, 450), // Ensure terrain doesn't go too high
+        y: Math.max(height, 200), // Allow for very high elevation
         isGreen: this.isInGreenArea(x)
       });
     }
@@ -119,11 +138,11 @@ export class Hole2Terrain {
       let elevationMultiplier = 0;
       
       if (x >= leftSlopeStart && x < this.greenStartX) {
-        // Left slope - gradual rise to green
+        // Left slope - gradual ascent to green (green is elevated)
         const progress = (x - leftSlopeStart) / this.greenSlopeWidth;
         elevationMultiplier = this.smoothStep(progress);
       } else if (x >= this.greenStartX && x <= this.greenEndX) {
-        // On the green - completely flat surface
+        // On the green - completely flat surface (elevated above surrounding terrain)
         elevationMultiplier = 1.0;
       } else if (x > this.greenEndX && x <= rightSlopeEnd) {
         // Right slope - gradual descent from green
@@ -131,6 +150,7 @@ export class Hole2Terrain {
         elevationMultiplier = this.smoothStep(progress);
       }
       
+      // Green is above surrounding terrain (subtract from height)
       return baseHeight - (this.greenHeight * elevationMultiplier);
     }
     
@@ -163,7 +183,7 @@ export class Hole2Terrain {
   }
 
   // Check if ball is in water hazard (using mixin method)
-  // isBallInWater method is provided by WaterHazardMixin
+  // Water collision detection is now integrated into this class
 
   // Check if ball is in the target circle area
   isBallInTargetCircle(ballX, ballY) {
@@ -222,6 +242,9 @@ export class Hole2Terrain {
     // Add green area overlay
     this.addGreenOverlay();
     
+    // Add water area overlay (integrated into terrain)
+    this.addWaterOverlay();
+    
     // Add outline
     this.terrainGraphics.lineStyle(2, 0x388E3C); // Darker green outline
     this.terrainGraphics.strokePath();
@@ -229,17 +252,7 @@ export class Hole2Terrain {
     // Add texture details
     this.addTerrainDetails();
     
-    // Render water hazards AFTER terrain to ensure they appear on top
-    this.renderWaterHazards();
-  }
-
-  renderWaterHazards() {
-    if (this.waterHazards && this.waterHazards.length > 0) {
-      this.waterHazards.forEach(hazard => {
-        // Re-render each water hazard to ensure proper layering
-        hazard.createWaterGraphics();
-      });
-    }
+    // Water hazards are now integrated into terrain via addWaterOverlay()
   }
 
   addGreenOverlay() {
@@ -304,6 +317,206 @@ export class Hole2Terrain {
     }
   }
 
+  addWaterOverlay() {
+    // Add water hazard as integrated terrain area (blue colored)
+    const waterWidth = 1000; // 50 yards wide
+    const waterStartX = this.greenStartX - waterWidth - 100; // 50 yards before green
+    const waterEndX = waterStartX + waterWidth;
+    
+    // Create water area graphics
+    const waterGraphics = this.scene.add.graphics();
+    waterGraphics.setDepth(2); // Same depth as green overlay
+    waterGraphics.fillStyle(0x1976D2); // Blue water color
+    
+    // Find water area points from height map
+    const waterPoints = this.heightMap.filter(point => 
+      point.x >= waterStartX && point.x <= waterEndX
+    );
+    
+    if (waterPoints.length > 0) {
+      waterGraphics.beginPath();
+      
+      // Start from bottom of water area
+      waterGraphics.moveTo(waterPoints[0].x, 768);
+      
+      // Draw water surface following terrain
+      waterPoints.forEach((point, index) => {
+        if (index === 0) {
+          waterGraphics.lineTo(point.x, point.y);
+        } else {
+          waterGraphics.lineTo(point.x, point.y);
+        }
+      });
+      
+      // Close the water area
+      const lastPoint = waterPoints[waterPoints.length - 1];
+      waterGraphics.lineTo(lastPoint.x, 768);
+      waterGraphics.lineTo(waterPoints[0].x, 768);
+      waterGraphics.closePath();
+      waterGraphics.fillPath();
+      
+      // Add water texture/ripples
+      this.addWaterTexture(waterGraphics, waterPoints);
+    }
+    
+    // Store water area properties for collision detection
+    this.waterStartX = waterStartX;
+    this.waterEndX = waterEndX;
+    this.waterLevel = waterPoints.length > 0 ? waterPoints[Math.floor(waterPoints.length / 2)].y : 600;
+  }
+
+  addBunkerOverlay() {
+    // Add bunker as integrated terrain area (brown/sand colored)
+    const bunkerWidth = 600; // 30 yards wide
+    const bunkerStartX = this.greenEndX + 50; // 50 pixels after green ends
+    const bunkerEndX = bunkerStartX + bunkerWidth;
+    
+    // Create bunker area graphics
+    const bunkerGraphics = this.scene.add.graphics();
+    bunkerGraphics.setDepth(2); // Same depth as green and water overlays
+    bunkerGraphics.fillStyle(0xD2B48C); // Tan/sand color
+    
+    // Find bunker area points from height map
+    const bunkerPoints = this.heightMap.filter(point => 
+      point.x >= bunkerStartX && point.x <= bunkerEndX
+    );
+    
+    if (bunkerPoints.length > 0) {
+      bunkerGraphics.beginPath();
+      
+      // Start from bottom of bunker area
+      bunkerGraphics.moveTo(bunkerPoints[0].x, 768);
+      
+      // Draw bunker surface following terrain
+      bunkerPoints.forEach((point, index) => {
+        if (index === 0) {
+          bunkerGraphics.lineTo(point.x, point.y);
+        } else {
+          bunkerGraphics.lineTo(point.x, point.y);
+        }
+      });
+      
+      // Close the bunker area
+      const lastPoint = bunkerPoints[bunkerPoints.length - 1];
+      bunkerGraphics.lineTo(lastPoint.x, 768);
+      bunkerGraphics.lineTo(bunkerPoints[0].x, 768);
+      bunkerGraphics.closePath();
+      bunkerGraphics.fillPath();
+      
+      // Add bunker texture/sand details
+      this.addBunkerTexture(bunkerGraphics, bunkerPoints);
+    }
+    
+    // Store bunker area properties for collision detection
+    this.bunkerStartX = bunkerStartX;
+    this.bunkerEndX = bunkerEndX;
+    this.bunkerLevel = bunkerPoints.length > 0 ? bunkerPoints[Math.floor(bunkerPoints.length / 2)].y : 600;
+  }
+
+  addWaterTexture(graphics, waterPoints) {
+    // Add subtle water ripples
+    graphics.lineStyle(1, 0x0D47A1, 0.3); // Darker blue for ripples
+    
+    const startX = waterPoints[0].x;
+    const endX = waterPoints[waterPoints.length - 1].x;
+    
+    // Add horizontal ripple lines
+    for (let x = startX; x < endX; x += 40) {
+      const height1 = this.getHeightAtX(x);
+      const height2 = this.getHeightAtX(x + 30);
+      
+      graphics.moveTo(x, height1);
+      graphics.lineTo(x + 30, height2);
+    }
+    
+    graphics.strokePath();
+  }
+
+  addBunkerTexture(graphics, bunkerPoints) {
+    // Add sand texture and details
+    graphics.lineStyle(1, 0xBC9A6A, 0.4); // Darker sand color for texture
+    
+    const startX = bunkerPoints[0].x;
+    const endX = bunkerPoints[bunkerPoints.length - 1].x;
+    
+    // Add sand grain texture
+    for (let x = startX; x < endX; x += 20) {
+      const height1 = this.getHeightAtX(x);
+      const height2 = this.getHeightAtX(x + 15);
+      
+      graphics.moveTo(x, height1);
+      graphics.lineTo(x + 15, height2);
+    }
+    
+    // Add sand ripple lines
+    graphics.lineStyle(1, 0xE6D3A3, 0.3); // Lighter sand color for ripples
+    for (let x = startX; x < endX; x += 30) {
+      const height = this.getHeightAtX(x);
+      const rippleOffset = Math.sin(x * 0.01) * 2;
+      graphics.lineBetween(x + rippleOffset, height + 5, x + 20 + rippleOffset, height + 6);
+    }
+    
+    graphics.strokePath();
+  }
+
+  // Check if ball is in water hazard (integrated into terrain)
+  isBallInWater(ballX, ballY) {
+    if (!this.waterStartX || !this.waterEndX) return false;
+    
+    return ballX >= this.waterStartX && 
+           ballX <= this.waterEndX && 
+           ballY >= this.waterLevel - 20; // Trigger collision slightly above water surface
+  }
+
+  // Check if ball is in bunker (integrated into terrain)
+  isBallInBunker(ballX, ballY) {
+    if (!this.bunkerStartX || !this.bunkerEndX) return false;
+    
+    return ballX >= this.bunkerStartX && 
+           ballX <= this.bunkerEndX && 
+           ballY >= this.bunkerLevel - 20; // Trigger collision slightly above bunker surface
+  }
+
+  // Find water drop position for integrated water hazard
+  findWaterDropPosition(ballX, ballY, approachDirection = 'right') {
+    if (!this.waterStartX || !this.waterEndX) {
+      // No water hazard - fallback position
+      return { x: 200, y: this.getTerrainHeightAtX ? this.getTerrainHeightAtX(200) - 15 : 600 };
+    }
+
+    // Drop ball 12.5 yards away from water hazard
+    const dropDistance = 250; // 12.5 yards in pixels (12.5 * 20)
+    let dropX;
+
+    // Determine which side of water to drop on based on approach direction
+    if (approachDirection === 'right') {
+      // Ball was moving left to right - drop on the LEFT side of water
+      dropX = this.waterStartX - dropDistance;
+    } else {
+      // Ball was moving right to left - drop on the RIGHT side of water
+      dropX = this.waterEndX + dropDistance;
+    }
+
+    // Ensure drop position is reasonable
+    dropX = Math.max(200, dropX); // Don't go behind tee
+    if (this.greenStartX) {
+      dropX = Math.min(this.greenStartX - 100, dropX); // Don't go past green
+    }
+
+    const dropY = this.getTerrainHeightAtX ? this.getTerrainHeightAtX(dropX) - 15 : 600;
+    
+    console.log('Integrated water drop position calculated:', {
+      ballX, ballY, 
+      approachDirection,
+      waterStart: this.waterStartX, waterEnd: this.waterEndX,
+      dropX, dropY,
+      dropDistance: '12.5 yards',
+      dropSide: approachDirection === 'right' ? 'left_of_water' : 'right_of_water'
+    });
+
+    return { x: dropX, y: dropY };
+  }
+
   addTerrainDetails() {
     // Add grass texture lines for regular terrain
     this.terrainGraphics.lineStyle(1, 0x66BB6A, 0.3);
@@ -332,11 +545,8 @@ export class Hole2Terrain {
     x = Math.max(0, Math.min(x, this.width));
     
     // Check if position is in water hazard - return much lower height so ball falls in
-    const waterAdjustment = this.getWaterHeightAdjustment(x);
-    if (waterAdjustment > 0) {
-      // Find the water hazard level and return below it
-      const hazard = this.waterHazards.find(h => x >= h.startX && x <= h.endX);
-      return hazard ? hazard.level + 100 : this.baseHeight + 100;
+    if (this.waterStartX && this.waterEndX && x >= this.waterStartX && x <= this.waterEndX) {
+      return this.waterLevel + 100; // Return height well below water surface so ball sinks
     }
     
     return this.getTerrainHeightAtX(x);
@@ -453,9 +663,8 @@ export class Hole2Terrain {
     if (this.terrainGraphics) {
       this.terrainGraphics.destroy();
     }
-    this.destroyWaterHazards();
+    // Water hazards are now integrated into terrain graphics
   }
 }
 
-// Apply the WaterHazardMixin to add water hazard functionality
-Object.assign(Hole2Terrain.prototype, WaterHazardMixin);
+// Water hazard and bunker functionality are now integrated directly into this class

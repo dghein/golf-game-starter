@@ -32,10 +32,14 @@ export default class Hole1Scene extends Phaser.Scene {
     this.load.audio("swoosh", "assets/sounds/swoosh.mp3");
     this.load.audio("splash", "assets/sounds/splash.mp3");
     this.load.audio("clap", "assets/sounds/clap.mp3");
+    this.load.audio("cheer", "assets/sounds/cheer.mp3");
     
-    // Debug: Log when clap sound is loaded
+    // Debug: Log when sounds are loaded
     this.load.on('filecomplete-audio-clap', () => {
       console.log('Clap sound file loaded successfully');
+    });
+    this.load.on('filecomplete-audio-cheer', () => {
+      console.log('Cheer sound file loaded successfully');
     });
   }
 
@@ -90,8 +94,11 @@ export default class Hole1Scene extends Phaser.Scene {
     
     // Create and set clap sound for hole completion
     this.clapSound = this.sound.add("clap", { volume: 0.8 });
+    this.cheerSound = this.sound.add("cheer", { volume: 0.8 });
     console.log('Clap sound created:', this.clapSound);
+    console.log('Cheer sound created:', this.cheerSound);
     this.golfBall.setClapSound(this.clapSound);
+    this.golfBall.setCheerSound(this.cheerSound);
     console.log('Clap sound set on golf ball');
     
     // Set up camera switching callback
@@ -332,25 +339,77 @@ export default class Hole1Scene extends Phaser.Scene {
     const par = courseManager.getCurrentPar();
     const strokes = this.shotCount;
     const scoreName = this.getScoreName(strokes, par);
+    const isHoleInOne = strokes === 1;
     
     // Create completion message
     const centerX = this.cameras.main.width / 2;
     const centerY = this.cameras.main.height / 2;
     
-    const completionText = this.add.text(centerX, centerY - 50, 
-      `Hole ${courseManager.getCurrentHole()} Complete!\n${strokes} strokes (Par ${par})\n${scoreName}`, {
+    // Special styling for hole-in-one
+    const textStyle = isHoleInOne ? {
+      fontSize: '48px',
+      fill: '#FFD700', // Gold color for hole-in-one
+      stroke: '#FF0000', // Red stroke for extra emphasis
+      strokeThickness: 6,
+      fontFamily: 'Arial',
+      align: 'center'
+    } : {
       fontSize: '32px',
       fill: '#ffffff',
       stroke: '#000000',
       strokeThickness: 4,
       fontFamily: 'Arial',
       align: 'center'
-    });
+    };
+    
+    const messageText = isHoleInOne ? 
+      `🎉 HOLE IN ONE! 🎉\nHole ${courseManager.getCurrentHole()} Complete!\n${strokes} stroke (Par ${par})\n${scoreName}` :
+      `Hole ${courseManager.getCurrentHole()} Complete!\n${strokes} strokes (Par ${par})\n${scoreName}`;
+    
+    const completionText = this.add.text(centerX, centerY - 50, messageText, textStyle);
     completionText.setOrigin(0.5);
     completionText.setScrollFactor(0);
+    completionText.setDepth(100); // Set high depth to appear on top of all game elements
+    
+    // Add celebration effects for hole-in-one
+    if (isHoleInOne) {
+      // Add pulsing effect
+      this.tweens.add({
+        targets: completionText,
+        scaleX: 1.2,
+        scaleY: 1.2,
+        duration: 500,
+        yoyo: true,
+        repeat: 5,
+        ease: 'Power2'
+      });
+      
+      // Add extra celebration text
+      const celebrationText = this.add.text(centerX, centerY + 20, 'INCREDIBLE SHOT!', {
+        fontSize: '28px',
+        fill: '#FFD700',
+        stroke: '#FF0000',
+        strokeThickness: 4,
+        fontFamily: 'Arial',
+        align: 'center'
+      });
+      celebrationText.setOrigin(0.5);
+      celebrationText.setScrollFactor(0);
+      celebrationText.setDepth(100);
+      
+      // Pulse the celebration text too
+      this.tweens.add({
+        targets: celebrationText,
+        alpha: 0.3,
+        duration: 300,
+        yoyo: true,
+        repeat: 8,
+        ease: 'Power2'
+      });
+    }
     
     // Add "Next Hole" text
-    const nextText = this.add.text(centerX, centerY + 50, 'Next hole in 3 seconds...', {
+    const nextText = this.add.text(centerX, centerY + 80, 'Next hole in 3 seconds...', {
       fontSize: '24px',
       fill: '#ffff00',
       stroke: '#000000',
@@ -359,9 +418,15 @@ export default class Hole1Scene extends Phaser.Scene {
     });
     nextText.setOrigin(0.5);
     nextText.setScrollFactor(0);
+    nextText.setDepth(100); // Set high depth to appear on top of all game elements
   }
 
   getScoreName(strokes, par) {
+    // Special case: Hole-in-one (1 stroke on any hole)
+    if (strokes === 1) {
+      return 'HOLE IN ONE! 🎉';
+    }
+    
     const diff = strokes - par;
     if (diff <= -4) return 'Condor!';
     if (diff === -3) return 'Albatross!';
@@ -554,6 +619,12 @@ export default class Hole1Scene extends Phaser.Scene {
     // Always check for ball stabilization (even when not tracking distance)
     this.golfBall.isStablyStopped(this.game.loop.delta);
     
+    // Check for water collision (runs every frame)
+    this.golfBall.checkWaterCollision();
+    
+    // Check for bunker collision (runs every frame)
+    this.golfBall.checkBunkerCollision();
+    
     // Check for target circle collision (runs every frame)
     this.golfBall.checkTargetCircleCollision();
     
@@ -587,10 +658,6 @@ export default class Hole1Scene extends Phaser.Scene {
     
     // Switch back to following player as soon as they start moving
     if (this.cameraFollowingBall && playerIsMoving) {
-      this.switchCameraToPlayer();
-    }
-    // Also switch back to following player when ball is stably stopped (fallback)
-    else if (this.cameraFollowingBall && ballIsStablyStopped) {
       this.switchCameraToPlayer();
     }
     

@@ -48,6 +48,7 @@ export class GolfBall {
     this.swooshSound = null; // Will be set by GameScene
     this.splashSound = null; // Will be set by GameScene
     this.clapSound = null; // Will be set by GameScene
+    this.cheerSound = null; // Will be set by GameScene
     
     // Camera callback properties
     this.onBallHitCallback = null; // Will be set by GameScene
@@ -80,6 +81,11 @@ export class GolfBall {
     
     // Enable collision with world bounds
     this.sprite.body.setCollideWorldBounds(true);
+    
+    // Make resetBall command available globally for debugging
+    window.resetBall = () => this.resetBall();
+    
+    console.log('Golf ball initialized. Use resetBall() in console to reset ball position.');
   }
 
   // Get ball position
@@ -129,6 +135,10 @@ export class GolfBall {
   // Set clap sound reference
   setClapSound(clapSound) {
     this.clapSound = clapSound;
+  }
+
+  setCheerSound(cheerSound) {
+    this.cheerSound = cheerSound;
   }
 
   // Set callback for when ball gets hit (for camera switching)
@@ -439,11 +449,17 @@ export class GolfBall {
         const terrainHeight = this.terrain.getHeightAtX(this.sprite.x);
         const ballBottom = this.sprite.y + this.groundRadius;
         
-        // Only stabilize if ball is close to terrain surface (not floating)
-        if (ballBottom >= terrainHeight - 5) {
+        // Check terrain slope - don't stabilize on steep slopes
+        const slope = this.terrain.getSlopeAtX(this.sprite.x);
+        const isOnSteepSlope = Math.abs(slope) > 0.05; // Steep slope threshold
+        
+        // Only stabilize if ball is close to terrain surface AND not on steep slope
+        if (ballBottom >= terrainHeight - 8 && !isOnSteepSlope) {
           this.stabilizeBall();
-          console.log(`Ball stabilized - horizontal movement stopped (hVel: ${Math.round(horizontalVel)}, vVel: ${Math.round(verticalVel)})`);
+          console.log(`Ball stabilized - horizontal movement stopped (hVel: ${Math.round(horizontalVel)}, vVel: ${Math.round(verticalVel)}, slope: ${slope.toFixed(3)})`);
           return true;
+        } else if (isOnSteepSlope) {
+          console.log(`Ball NOT stabilized - on steep slope (slope: ${slope.toFixed(3)}, hVel: ${Math.round(horizontalVel)})`);
         } else {
           console.log(`Ball not stabilized - floating above terrain (ball: ${Math.round(ballBottom)}, terrain: ${Math.round(terrainHeight)})`);
         }
@@ -466,11 +482,17 @@ export class GolfBall {
           const terrainHeight = this.terrain.getHeightAtX(this.sprite.x);
           const ballBottom = this.sprite.y + this.groundRadius;
           
-          // Only stabilize if ball is close to terrain surface
-          if (ballBottom >= terrainHeight - 5) {
+          // Check terrain slope - don't stabilize on steep slopes
+          const slope = this.terrain.getSlopeAtX(this.sprite.x);
+          const isOnSteepSlope = Math.abs(slope) > 0.05; // Steep slope threshold
+          
+          // Only stabilize if ball is close to terrain surface AND not on steep slope
+          if (ballBottom >= terrainHeight - 5 && !isOnSteepSlope) {
             this.stabilizeBall();
-            console.log(`Ball stabilized after brief wait - low horizontal movement (hVel: ${Math.round(horizontalVel)})`);
+            console.log(`Ball stabilized after brief wait - low horizontal movement (hVel: ${Math.round(horizontalVel)}, slope: ${slope.toFixed(3)})`);
             return true;
+          } else if (isOnSteepSlope) {
+            console.log(`Ball NOT stabilized - on steep slope (slope: ${slope.toFixed(3)}, hVel: ${Math.round(horizontalVel)})`);
           } else {
             console.log(`Ball not stabilized - still floating above terrain (ball: ${Math.round(ballBottom)}, terrain: ${Math.round(terrainHeight)})`);
           }
@@ -495,10 +517,10 @@ export class GolfBall {
       const terrainHeight = this.terrain.getHeightAtX(this.sprite.x);
       const targetY = terrainHeight - this.groundRadius;
       
-      // If ball is floating above terrain, adjust it to terrain surface
-      if (this.sprite.y < targetY) {
+      // Always adjust ball to terrain surface, whether above or below
+      if (Math.abs(this.sprite.y - targetY) > 2) {
         this.sprite.setY(targetY);
-        console.log(`Ball adjusted to terrain surface before stabilizing: ${Math.round(targetY)}`);
+        console.log(`Ball adjusted to terrain surface before stabilizing: ${Math.round(targetY)} (was: ${Math.round(this.sprite.y)})`);
       }
     }
     
@@ -584,12 +606,18 @@ export class GolfBall {
       // Mark hole as completed to prevent multiple triggers
       this.holeCompleted = true;
       
-      // Play celebration clap sound FIRST before doing anything else
-      if (this.clapSound) {
+      // Play celebration sound FIRST before doing anything else
+      // Check if this is a hole-in-one (1 stroke) to play appropriate sound
+      const isHoleInOne = this.scene.shotCount === 1;
+      
+      if (isHoleInOne && this.cheerSound) {
+        console.log('Playing cheer sound for hole-in-one...');
+        this.cheerSound.play();
+      } else if (this.clapSound) {
         console.log('Playing clap sound...');
         this.clapSound.play();
       } else {
-        console.log('Clap sound not available!');
+        console.log('No celebration sound available!');
       }
       
       // Stop the ball immediately
@@ -636,6 +664,68 @@ export class GolfBall {
       
       // Reset ball state
       this.unstabilizeBall();
+    }
+  }
+
+  // Check if ball has landed in bunker
+  checkBunkerCollision() {
+    if (this.terrain && this.terrain.isBallInBunker && this.terrain.isBallInBunker(this.sprite.x, this.sprite.y)) {
+      console.log('Ball landed in bunker! Ball will be harder to hit from sand...');
+      
+      // Play a subtle "thud" sound for landing in sand (could add sand sound later)
+      if (this.hitSound) {
+        this.hitSound.play({ volume: 0.3 }); // Quieter sound for sand landing
+      }
+      
+      // Apply sand physics - reduce ball speed but keep it playable
+      // Different clubs have different effectiveness in sand
+      let horizontalReduction = 0.6; // Default 40% reduction
+      let verticalReduction = 0.5;  // Default 50% reduction
+      
+      // Get current club type for bunker-specific physics
+      const currentClub = this.scene.clubManager ? this.scene.clubManager.getCurrentClub() : 'driver';
+      
+      switch (currentClub) {
+        case 'wedge':
+          // Wedge is best in sand - least reduction
+          horizontalReduction = 0.8; // Only 20% reduction
+          verticalReduction = 0.7;   // Only 30% reduction
+          console.log('Wedge in bunker - minimal sand penalty');
+          break;
+        case 'iron':
+          // Iron is decent in sand
+          horizontalReduction = 0.7; // 30% reduction
+          verticalReduction = 0.6;   // 40% reduction
+          console.log('Iron in bunker - moderate sand penalty');
+          break;
+        case 'putter':
+          // Putter struggles in sand
+          horizontalReduction = 0.5; // 50% reduction
+          verticalReduction = 0.4;   // 60% reduction
+          console.log('Putter in bunker - significant sand penalty');
+          break;
+        case 'driver':
+        default:
+          // Driver is worst in sand - most reduction
+          horizontalReduction = 0.4; // 60% reduction
+          verticalReduction = 0.3;   // 70% reduction
+          console.log('Driver in bunker - maximum sand penalty');
+          break;
+      }
+      
+      this.sprite.body.setVelocity(
+        this.sprite.body.velocity.x * horizontalReduction,
+        this.sprite.body.velocity.y * verticalReduction
+      );
+      
+      // Mark ball as being in bunker for different physics
+      this.inBunker = true;
+      
+      console.log(`Ball physics adjusted for sand trap (${currentClub}): ${Math.round((1-horizontalReduction)*100)}% horizontal reduction, ${Math.round((1-verticalReduction)*100)}% vertical reduction`);
+    } else if (this.inBunker) {
+      // Ball has left the bunker
+      this.inBunker = false;
+      console.log('Ball has left the bunker');
     }
   }
 
@@ -753,42 +843,93 @@ export class GolfBall {
     const ballBottom = this.sprite.y + this.groundRadius;
     const terrainHeight = this.terrain.getHeightAtX(this.sprite.x);
     
-    // Only apply terrain physics if ball is significantly below terrain
+    // Apply terrain physics if ball is significantly below terrain
     // and not flying upward (to allow proper ball flight)
-    if (ballBottom > terrainHeight + 8 && currentVel.y >= 0) {
-      // Much more gentle positioning - only for major height differences
+    if (ballBottom > terrainHeight + 5 && currentVel.y >= 0) {
+      // Calculate target position
       const targetY = terrainHeight - this.groundRadius;
       const currentY = this.sprite.y;
       const yDifference = targetY - currentY;
       
-      // Only adjust for very significant differences to eliminate vibration
-      if (Math.abs(yDifference) > 10) {
-        // Very gentle interpolation
-        const adjustmentSpeed = 0.2;
+      // Adjust for significant differences to eliminate vibration
+      if (Math.abs(yDifference) > 5) {
+        // Gentle interpolation to terrain surface
+        const adjustmentSpeed = 0.3;
         const newY = currentY + yDifference * adjustmentSpeed;
         this.sprite.setY(newY);
         
         // Only apply bounce if ball is falling very fast
         if (currentVel.y > 200) {
-          // Very gentle bounce
+          // Gentle bounce
           this.sprite.body.setVelocityY(currentVel.y * -0.3);
         } else {
-          // Ball is rolling - just stop vertical movement gently
-          this.sprite.body.setVelocityY(currentVel.y * 0.8);
+          // Ball is rolling - reduce vertical movement
+          this.sprite.body.setVelocityY(currentVel.y * 0.7);
         }
       }
     }
     
-    // Completely separate, very gentle slope influence system
-    // Don't apply slope forces to stabilized balls or balls that are very slow
-    // Much more restrictive - only apply to balls moving at reasonable speed
-    if (Math.abs(currentVel.x) < 150 && Math.abs(currentVel.x) > 50 && !this.isStabilized) {
+    // Enhanced slope influence system for realistic ball rolling
+    // Apply slope forces to rolling balls (not stabilized or flying)
+    if (!this.isStabilized && Math.abs(currentVel.y) < 50) {
       const slope = this.terrain.getSlopeAtX(this.sprite.x);
-      if (Math.abs(slope) > 0.02) {
-        // Very minimal slope influence
-        const slopeForce = slope * 3; // Even further reduced force
+      
+      // Apply slope forces based on steepness
+      if (Math.abs(slope) > 0.01) {
+        // Calculate slope force - positive slope pushes ball right, negative pushes left
+        // Make slope force stronger for steeper slopes
+        const slopeForce = slope * (Math.abs(slope) > 0.1 ? 15 : 8); // Stronger force on steep slopes
+        
+        // Apply horizontal force based on slope
         this.sprite.body.setVelocityX(currentVel.x + slopeForce);
+        
+        // Add some vertical component for steep slopes
+        if (Math.abs(slope) > 0.1) {
+          const verticalForce = Math.abs(slope) * 3; // Increased vertical force
+          if (slope > 0) {
+            // Uphill - reduce upward velocity
+            this.sprite.body.setVelocityY(currentVel.y - verticalForce);
+          } else {
+            // Downhill - add downward velocity
+            this.sprite.body.setVelocityY(currentVel.y + verticalForce);
+          }
+        }
+        
+        console.log(`Slope physics applied: slope=${slope.toFixed(3)}, force=${slopeForce.toFixed(2)}`);
       }
     }
+  }
+  
+  // Reset ball position for debugging - places ball near player on terrain
+  resetBall() {
+    if (!this.scene || !this.scene.player || !this.terrain) {
+      console.log('Cannot reset ball - missing scene, player, or terrain');
+      return;
+    }
+    
+    // Get player position
+    const playerX = this.scene.player.sprite.x;
+    const playerY = this.scene.player.sprite.y;
+    
+    // Place ball slightly ahead of player (to the right)
+    const ballX = playerX + 100; // 100 pixels ahead of player
+    const terrainHeight = this.terrain.getHeightAtX(ballX);
+    const ballY = terrainHeight - this.groundRadius; // On terrain surface
+    
+    // Reset ball position
+    this.sprite.setPosition(ballX, ballY);
+    
+    // Stop all movement
+    this.sprite.body.setVelocity(0, 0);
+    
+    // Unstabilize ball so it can be hit again
+    this.unstabilizeBall();
+    
+    // Reset distance tracking
+    this.currentDistance = 0;
+    this.stableStopTimer = 0;
+    this.positionStableCount = 0;
+    
+    console.log(`Ball reset to position: x=${Math.round(ballX)}, y=${Math.round(ballY)} (terrain height: ${Math.round(terrainHeight)})`);
   }
 }
