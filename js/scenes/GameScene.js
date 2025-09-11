@@ -33,6 +33,7 @@ export default class Hole1Scene extends Phaser.Scene {
     this.load.audio("splash", "assets/sounds/splash.mp3");
     this.load.audio("clap", "assets/sounds/clap.mp3");
     this.load.audio("cheer", "assets/sounds/cheer.mp3");
+    this.load.audio("swimming", "assets/sounds/swimming.mp3");
     
     // Debug: Log when sounds are loaded
     this.load.on('filecomplete-audio-clap', () => {
@@ -45,7 +46,7 @@ export default class Hole1Scene extends Phaser.Scene {
 
   create() {
     // Set world bounds for expanded golf hole, with extra space above for ball flight
-    this.physics.world.setBounds(0, -1000, 15000, 1650); // Extended width for expanded water and fairway
+    this.physics.world.setBounds(0, -2000, 15000, 2650); // Extended height for high shots, extended width for expanded water and fairway
     
     // Enable gravity for realistic falling
     // this.physics.world.gravity.y = 500; // Gravity pulls objects down
@@ -62,11 +63,15 @@ export default class Hole1Scene extends Phaser.Scene {
     // Setup WASD controls
     this.keys = setupWASD(this);
 
+    // Create swimming sound early so it's available for player
+    this.swimmingSound = this.sound.add("swimming", { volume: 0.6, loop: true });
+
     // Create player at terrain height
     const startX = 100;
     const startY = this.terrain.getHeightAtX(startX) - 30; // 30px above terrain
     this.player = new Player(this, startX, startY);
     this.player.setTerrain(this.terrain);
+    this.player.setSwimmingSound(this.swimmingSound);
     
     // Set player depth to appear above terrain but below water
     this.player.sprite.setDepth(5);
@@ -604,6 +609,9 @@ export default class Hole1Scene extends Phaser.Scene {
 
     // Update terrain physics for ball
     this.golfBall.updateTerrainPhysics();
+    
+    // Additional fall-through prevention check
+    this.golfBall.preventFallThrough();
 
     // Apply wind effects to ball during flight
     this.golfBall.applyWindEffects();

@@ -82,6 +82,17 @@ export class GolfBall {
     // Enable collision with world bounds
     this.sprite.body.setCollideWorldBounds(true);
     
+    // Handle world bounds collision to prevent top collision bounce
+    this.sprite.body.onWorldBounds = true;
+    this.sprite.body.world.on('worldbounds', (event) => {
+      if (event.body === this.sprite.body) {
+        // If hitting the top boundary, don't bounce - let it continue
+        if (event.position.y <= this.scene.physics.world.bounds.y) {
+          event.body.setVelocityY(Math.abs(event.body.velocity.y)); // Continue downward
+        }
+      }
+    });
+    
     // Make resetBall command available globally for debugging
     window.resetBall = () => this.resetBall();
     
@@ -451,7 +462,12 @@ export class GolfBall {
         
         // Check terrain slope - don't stabilize on steep slopes
         const slope = this.terrain.getSlopeAtX(this.sprite.x);
-        const isOnSteepSlope = Math.abs(slope) > 0.05; // Lower threshold - any significant slope prevents stabilization
+        const isOnSteepSlope = Math.abs(slope) > 0.15; // Higher threshold - only prevent stabilization on actually steep slopes
+        
+        // Debug logging for slope detection
+        if (Math.abs(slope) > 0.02) {
+          console.log(`Slope detection: slope=${slope.toFixed(3)}, isSteep=${isOnSteepSlope}, threshold=0.15`);
+        }
         
         // Only stabilize if ball is close to terrain surface AND not on steep slope
         if (ballBottom >= terrainHeight - 8 && !isOnSteepSlope) {
@@ -459,7 +475,9 @@ export class GolfBall {
           console.log(`Ball stabilized - horizontal movement stopped (hVel: ${Math.round(horizontalVel)}, vVel: ${Math.round(verticalVel)}, slope: ${slope.toFixed(3)})`);
           return true;
         } else if (isOnSteepSlope) {
-          console.log(`Ball NOT stabilized - on steep slope (slope: ${slope.toFixed(3)}, hVel: ${Math.round(horizontalVel)})`);
+          // On steep slopes, encourage ball to roll down instead of stabilizing
+          this.encourageRollDown(slope);
+          console.log(`Ball on steep slope - encouraging roll down (slope: ${slope.toFixed(3)}, hVel: ${Math.round(horizontalVel)})`);
         } else {
           console.log(`Ball not stabilized - floating above terrain (ball: ${Math.round(ballBottom)}, terrain: ${Math.round(terrainHeight)})`);
         }
@@ -484,7 +502,7 @@ export class GolfBall {
           
           // Check terrain slope - don't stabilize on steep slopes
           const slope = this.terrain.getSlopeAtX(this.sprite.x);
-          const isOnSteepSlope = Math.abs(slope) > 0.05; // Lower threshold - any significant slope prevents stabilization
+          const isOnSteepSlope = Math.abs(slope) > 0.15; // Higher threshold - only prevent stabilization on actually steep slopes
           
           // Only stabilize if ball is close to terrain surface AND not on steep slope
           if (ballBottom >= terrainHeight - 5 && !isOnSteepSlope) {
@@ -492,7 +510,9 @@ export class GolfBall {
             console.log(`Ball stabilized after brief wait - low horizontal movement (hVel: ${Math.round(horizontalVel)}, slope: ${slope.toFixed(3)})`);
             return true;
           } else if (isOnSteepSlope) {
-            console.log(`Ball NOT stabilized - on steep slope (slope: ${slope.toFixed(3)}, hVel: ${Math.round(horizontalVel)})`);
+            // On steep slopes, encourage ball to roll down instead of stabilizing
+            this.encourageRollDown(slope);
+            console.log(`Ball on steep slope - encouraging roll down (slope: ${slope.toFixed(3)}, hVel: ${Math.round(horizontalVel)})`);
           } else {
             console.log(`Ball not stabilized - still floating above terrain (ball: ${Math.round(ballBottom)}, terrain: ${Math.round(terrainHeight)})`);
           }
@@ -656,6 +676,17 @@ export class GolfBall {
       // Find a safe drop position near the water hazard
       const dropPosition = this.findWaterDropPosition();
       this.sprite.setPosition(dropPosition.x, dropPosition.y);
+      
+      // Ensure ball is properly positioned on terrain surface
+      if (this.terrain) {
+        const terrainHeight = this.terrain.getHeightAtX(dropPosition.x);
+        const correctY = terrainHeight - this.groundRadius;
+        this.sprite.setY(correctY);
+        console.log(`Water drop: positioned at x=${Math.round(dropPosition.x)}, y=${Math.round(correctY)} (terrain height: ${Math.round(terrainHeight)})`);
+      }
+      
+      // Stabilize the ball after water drop to prevent falling through
+      this.stabilizeBall();
       
       // Call penalty callback to add stroke
       if (this.onWaterPenaltyCallback) {
@@ -836,7 +867,19 @@ export class GolfBall {
     const horizontalVel = Math.abs(currentVel.x);
     
     // Don't apply terrain physics when horizontal movement is low - let ball stabilize
+    // But always check for fall-through prevention
     if (horizontalVel < 12) {
+      // Still check if ball is falling through terrain
+      const ballBottom = this.sprite.y + this.groundRadius;
+      const terrainHeight = this.terrain.getHeightAtX(this.sprite.x);
+      
+      if (ballBottom > terrainHeight + 10) {
+        // Ball is falling through - force it back to surface
+        const correctY = terrainHeight - this.groundRadius;
+        this.sprite.setY(correctY);
+        this.sprite.body.setVelocityY(0);
+        console.log(`Fall-through prevention: corrected ball position to y=${Math.round(correctY)}`);
+      }
       return;
     }
 
@@ -1010,5 +1053,41 @@ export class GolfBall {
     this.positionStableCount = 0;
     
     console.log(`Ball reset to position: x=${Math.round(ballX)}, y=${Math.round(ballY)} (terrain height: ${Math.round(terrainHeight)})`);
+  }
+  
+  // Prevent ball from falling through terrain - emergency safety check
+  preventFallThrough() {
+    if (!this.terrain || this.isStabilized) return;
+    
+    const ballBottom = this.sprite.y + this.groundRadius;
+    const terrainHeight = this.terrain.getHeightAtX(this.sprite.x);
+    
+    // If ball is significantly below terrain, force it back up
+    if (ballBottom > terrainHeight + 15) {
+      const correctY = terrainHeight - this.groundRadius;
+      this.sprite.setY(correctY);
+      this.sprite.body.setVelocityY(0);
+      console.log(`EMERGENCY: Ball falling through terrain! Corrected to y=${Math.round(correctY)}`);
+    }
+  }
+  
+  // Encourage ball to roll down steep slopes instead of stabilizing
+  encourageRollDown(slope) {
+    if (this.isStabilized) return;
+    
+    const currentVel = this.sprite.body.velocity;
+    const ballSpeed = Math.abs(currentVel.x);
+    
+    // If ball is moving very slowly, give it a push down the slope
+    if (ballSpeed < 20) {
+      // Calculate roll-down force based on slope steepness
+      const rollForce = slope * 30; // Strong force to encourage rolling
+      this.sprite.body.setVelocityX(currentVel.x + rollForce);
+      
+      // Add some downward velocity to help with gravity
+      this.sprite.body.setVelocityY(currentVel.y + Math.abs(slope) * 5);
+      
+      console.log(`Roll-down force applied: slope=${slope.toFixed(3)}, force=${rollForce.toFixed(2)}, speed=${Math.round(ballSpeed)}`);
+    }
   }
 }

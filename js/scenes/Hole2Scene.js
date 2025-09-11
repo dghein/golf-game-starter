@@ -33,6 +33,7 @@ export default class Hole2Scene extends Phaser.Scene {
     this.load.audio("splash", "assets/sounds/splash.mp3");
     this.load.audio("clap", "assets/sounds/clap.mp3");
     this.load.audio("cheer", "assets/sounds/cheer.mp3");
+    this.load.audio("swimming", "assets/sounds/swimming.mp3");
     
     // Debug: Log when sounds are loaded
     this.load.on('filecomplete-audio-clap', () => {
@@ -64,11 +65,15 @@ export default class Hole2Scene extends Phaser.Scene {
     // Setup WASD controls
     this.keys = setupWASD(this);
 
+    // Create swimming sound early so it's available for player
+    this.swimmingSound = this.sound.add("swimming", { volume: 0.6, loop: true });
+
     // Create player at terrain height
     const startX = 100;
     const startY = this.terrain.getHeightAtX(startX) - 30; // 30px above terrain
     this.player = new Player(this, startX, startY);
     this.player.setTerrain(this.terrain);
+    this.player.setSwimmingSound(this.swimmingSound);
     
     // Set player depth to appear above terrain but below water
     this.player.sprite.setDepth(5);

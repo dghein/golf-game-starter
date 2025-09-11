@@ -17,6 +17,8 @@ export class Player {
     this.speedLines = null; // Will hold speed lines effect
     this.terrain = null; // Reference to terrain system
     this.groundOffset = 60; // Distance above ground to maintain (adjusted for proper positioning)
+    this.swimmingSound = null; // Reference to swimming sound
+    this.isInWater = false; // Track if player is currently in water
     
     // Create player sprite
     this.sprite = scene.physics.add.sprite(x, y, "golfer_walking_0");
@@ -84,10 +86,18 @@ export class Player {
     this.terrain = terrain;
   }
 
+  // Set swimming sound reference
+  setSwimmingSound(swimmingSound) {
+    this.swimmingSound = swimmingSound;
+  }
+
   // Update player movement and animations based on input
   update(keys) {
     // Update terrain following first
     this.updateTerrainPosition();
+    
+    // Check for water detection and manage swimming sound
+    this.updateWaterDetection();
     
     // Don't allow movement or other actions while swinging
     if (this.isSwingInProgress) {
@@ -312,6 +322,36 @@ export class Player {
       this.sprite.setY(newY);
       // Stop any vertical velocity to prevent bouncing
       this.sprite.body.setVelocityY(0);
+    }
+  }
+
+  // Check if player is in water and manage swimming sound
+  updateWaterDetection() {
+    if (!this.terrain || !this.swimmingSound) {
+      console.log('Water detection skipped: terrain or swimmingSound not available');
+      return;
+    }
+
+    const playerX = this.sprite.x;
+    const playerY = this.sprite.y;
+
+    // Check if player is in water using the same method as the golf ball
+    const wasInWater = this.isInWater;
+    this.isInWater = this.terrain.isBallInWater ? this.terrain.isBallInWater(playerX, playerY) : false;
+
+    // Handle swimming sound based on water state changes
+    if (this.isInWater && !wasInWater) {
+      // Player entered water - start swimming sound
+      if (!this.swimmingSound.isPlaying) {
+        this.swimmingSound.play();
+        console.log('Player entered water - swimming sound started');
+      }
+    } else if (!this.isInWater && wasInWater) {
+      // Player exited water - stop swimming sound
+      if (this.swimmingSound.isPlaying) {
+        this.swimmingSound.stop();
+        console.log('Player exited water - swimming sound stopped');
+      }
     }
   }
 }
