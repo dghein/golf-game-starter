@@ -173,6 +173,12 @@ export class Enemy {
 
   // Check if golf ball is within aggro range
   checkAggro() {
+    // Check if hole is completed - if so, pursue player instead of ball
+    if (this.golfBall && this.golfBall.holeCompleted) {
+      this.checkPlayerAggro();
+      return;
+    }
+    
     if (!this.golfBall) return;
 
     const distance = Phaser.Math.Distance.Between(
@@ -188,6 +194,23 @@ export class Enemy {
     }
     // Once aggro, stay aggro - no exit condition!
     // The enemy will pursue the ball relentlessly until it's defeated or the hole is completed
+  }
+  
+  // Check aggro against player (after hole completion)
+  checkPlayerAggro() {
+    if (!this.player) return;
+    
+    const distance = Phaser.Math.Distance.Between(
+      this.sprite.x, this.sprite.y,
+      this.player.sprite.x, this.player.sprite.y
+    );
+    
+    // Check if player is within aggro range
+    if (distance <= this.aggroRange) {
+      if (!this.isAggro) {
+        this.enterAggroState();
+      }
+    }
   }
 
   // Enter aggro state
@@ -264,6 +287,12 @@ export class Enemy {
 
   // Handle aggro state
   handleAggroState() {
+    // After hole completion, pursue player instead of ball
+    if (this.golfBall && this.golfBall.holeCompleted) {
+      this.handlePlayerPursuit();
+      return;
+    }
+    
     if (!this.golfBall) return;
 
     const distance = Phaser.Math.Distance.Between(
@@ -283,6 +312,78 @@ export class Enemy {
       this.sprite.flipX = direction < 0;
       this.sprite.play('enemy_walk', true);
     }
+  }
+  
+  // Handle pursuit of player (after hole completion)
+  handlePlayerPursuit() {
+    if (!this.player) return;
+    
+    const distance = Phaser.Math.Distance.Between(
+      this.sprite.x, this.sprite.y,
+      this.player.sprite.x, this.player.sprite.y
+    );
+    
+    // Check if close enough to attack player
+    if (distance <= this.attackRange) {
+      this.performPlayerAttack();
+    } else {
+      // Move towards the player
+      const direction = this.player.sprite.x > this.sprite.x ? 1 : -1;
+      this.sprite.body.setVelocityX(direction * this.speed);
+      
+      // Flip sprite to face the player and play walking animation
+      this.sprite.flipX = direction < 0;
+      this.sprite.play('enemy_walk', true);
+    }
+  }
+  
+  // Attack the player directly (after hole completion)
+  performPlayerAttack() {
+    const currentTime = this.scene.time.now;
+    
+    // Check attack cooldown
+    if (currentTime - this.lastAttackTime < this.attackCooldown) {
+      return;
+    }
+    
+    this.lastAttackTime = currentTime;
+    this.state = 'swinging';
+    
+    // Play swing animation
+    this.sprite.play('enemy_swing', true);
+    
+    // When animation completes, stun the player
+    this.sprite.once('animationcomplete', () => {
+      this.stunPlayer();
+      this.state = 'aggro'; // Return to aggro state
+    });
+  }
+  
+  // Stun the player directly
+  stunPlayer() {
+    if (!this.player) return;
+    
+    // Calculate knockback direction (away from enemy)
+    const direction = this.player.sprite.x > this.sprite.x ? 1 : -1;
+    
+    // Apply horizontal knockback along terrain
+    const knockbackPower = 800; // Horizontal knockback power
+    
+    // Enable knockback mode to prevent normal movement from interfering
+    this.player.enableKnockbackMode();
+    
+    // Switch to damaged sprite
+    this.player.setDamagedSprite();
+    
+    // Apply horizontal knockback (no vertical component)
+    this.player.sprite.body.setVelocityX(direction * knockbackPower);
+    this.player.sprite.body.setVelocityY(0); // No vertical movement
+    
+    // Restore normal state after 2 seconds
+    this.scene.time.delayedCall(2000, () => {
+      this.player.disableKnockbackMode();
+      this.player.restoreNormalSprite();
+    });
   }
 
   // Handle swinging state
