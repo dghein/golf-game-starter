@@ -8,7 +8,7 @@ export class Enemy {
     // Enemy states
     this.state = 'idle'; // 'idle', 'aggro', 'swinging'
     this.isAggro = false;
-    this.aggroRange = 200; // Distance in pixels to detect golf ball
+    this.aggroRange = 500; // Increased from 200 to 500 pixels
     this.attackRange = 80; // Distance in pixels for swing attack
     
     // Enemy properties
@@ -95,6 +95,27 @@ export class Enemy {
   
   setBossfightSound(bossfightSound) {
     this.bossfightSound = bossfightSound;
+  }
+  
+  // Check if player is in front of the enemy (for swing hit detection)
+  isPlayerInFrontOfEnemy() {
+    if (!this.player) return false;
+    
+    const enemyX = this.sprite.x;
+    const playerX = this.player.sprite.x;
+    const enemyY = this.sprite.y;
+    const playerY = this.player.sprite.y;
+    
+    // Check if player is within a reasonable Y range (not too far above/below)
+    const verticalDistance = Math.abs(playerY - enemyY);
+    if (verticalDistance > 100) return false;
+    
+    // Check if player is in front of enemy (considering enemy's facing direction)
+    // For simplicity, we'll check if player is within a cone in front of enemy
+    const horizontalDistance = Math.abs(playerX - enemyX);
+    
+    // Player is in front if they're within reasonable horizontal and vertical distance
+    return horizontalDistance <= 200 && verticalDistance <= 100;
   }
 
   // Update enemy behavior
@@ -358,40 +379,21 @@ export class Enemy {
         
         console.log(`Enemy hit ball - Player distance: ${Math.round(playerDistance)} pixels`);
         
-        // If player is within 150 pixels, knock them back
-        if (playerDistance <= 150) {
-          const knockbackPower = finalPower * 0.8; // Increased from 0.5 - Much stronger knockback
-          const knockbackAngle = finalAngle * 0.7; // Increased from 0.5 - Higher trajectory
-          
-          // Temporarily make player physics more bouncy like golf ball
-          this.player.sprite.body.setBounce(0.8); // High bounce for dramatic effect
-          this.player.sprite.body.setDrag(50); // Air resistance
-          this.player.sprite.body.setFriction(0.95); // Ground friction
-          this.player.sprite.body.setGravityY(500); // Normal gravity for falling
-          this.player.sprite.body.setMaxVelocity(2000, 1200); // High max velocity
-          
-          // Enable knockback mode to prevent normal movement from interfering
+        // If player is close enough, stun them
+        if (playerDistance <= 200) {
+          // Simply stun the player in place
           this.player.enableKnockbackMode();
+          this.player.setDamagedSprite();
           
-          // Apply knockback to player
-          this.player.sprite.body.setVelocity(
-            direction * knockbackPower,
-            knockbackAngle
-          );
-          
-          // Restore normal player physics after 3 seconds
-          this.scene.time.delayedCall(3000, () => {
-            this.player.sprite.body.setBounce(0); // No bounce
-            this.player.sprite.body.setDrag(0); // No air resistance
-            this.player.sprite.body.setFriction(1); // Full friction
-            this.player.sprite.body.setGravityY(-100); // Counteract gravity
-            this.player.sprite.body.setMaxVelocity(1000, 1000); // Normal max velocity
-            this.player.disableKnockbackMode(); // Restore normal movement
+          // Stun for 1 second, then get up
+          this.scene.time.delayedCall(1000, () => {
+            this.player.disableKnockbackMode();
+            this.player.restoreNormalSprite();
           });
           
-          console.log(`Player knocked back by enemy hit! Distance: ${Math.round(playerDistance)}, Power: ${Math.round(knockbackPower)}`);
+          console.log(`Player stunned by enemy hit! Distance: ${Math.round(playerDistance)} pixels`);
         } else {
-          console.log(`Player too far for knockback: ${Math.round(playerDistance)} pixels`);
+          console.log(`Player too far for stun: ${Math.round(playerDistance)} pixels`);
         }
       } else {
         console.log('No player reference available for knockback');

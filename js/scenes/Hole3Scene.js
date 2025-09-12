@@ -33,6 +33,9 @@ export default class Hole3Scene extends Phaser.Scene {
         `assets/golfer/golfer_swing_${i}.png`
       );
     }
+    this.load.image("golfer_boat", "assets/golfer/golfer_boat.png");
+    this.load.image("golfer_damaged", "assets/golfer/golfer_damaged.png");
+    this.load.image("golfer_down", "assets/golfer/golfer_down.png");
     // Load sound effects
     this.load.audio("hit", "assets/sounds/hit.mp3");
     this.load.audio("putt", "assets/sounds/putt.mp3");
@@ -627,31 +630,19 @@ export default class Hole3Scene extends Phaser.Scene {
         console.log(`Player distance from enemy: ${Math.round(distance)} pixels`);
         
         if (distance <= 150) {
-          // Temporarily make player physics more bouncy like golf ball
-          this.player.sprite.body.setBounce(0.8); // High bounce for dramatic effect
-          this.player.sprite.body.setDrag(50); // Air resistance
-          this.player.sprite.body.setFriction(0.95); // Ground friction
-          this.player.sprite.body.setGravityY(500); // Normal gravity for falling
-          this.player.sprite.body.setMaxVelocity(2000, 1200); // High max velocity
-          
-          // Enable knockback mode to prevent normal movement from interfering
+          // Simply stun the player in place
           this.player.enableKnockbackMode();
+          this.player.setDamagedSprite();
           
-          // Apply test knockback with dramatic force
-          this.player.sprite.body.setVelocity(1500, -800);
-          console.log('DRAMATIC test knockback applied to player - they should fly!');
-          
-          // Restore normal player physics after 3 seconds
-          this.time.delayedCall(3000, () => {
-            this.player.sprite.body.setBounce(0); // No bounce
-            this.player.sprite.body.setDrag(0); // No air resistance
-            this.player.sprite.body.setFriction(1); // Full friction
-            this.player.sprite.body.setGravityY(-100); // Counteract gravity
-            this.player.sprite.body.setMaxVelocity(1000, 1000); // Normal max velocity
-            this.player.disableKnockbackMode(); // Restore normal movement
+          // Stun for 1 second, then get up
+          this.time.delayedCall(1000, () => {
+            this.player.disableKnockbackMode();
+            this.player.restoreNormalSprite();
           });
+          
+          console.log('Player stunned by test hit!');
         } else {
-          console.log('Player too far for test knockback');
+          console.log('Player too far for test stun');
         }
       } else {
         console.log('Enemy or player not available for test');
@@ -802,7 +793,7 @@ export default class Hole3Scene extends Phaser.Scene {
       this.golfBall.setVelocity(
         direction * bounceSpeed * Math.cos(bounceAngle),
         -Math.abs(bounceSpeed * Math.sin(bounceAngle)) // Always bounce upward
-        );
-      }
+      );
     }
+  }
 }

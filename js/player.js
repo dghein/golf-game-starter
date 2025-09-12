@@ -20,6 +20,7 @@ export class Player {
     this.swimmingSound = null; // Reference to swimming sound
     this.isInWater = false; // Track if player is currently in water
     this.isKnockedBack = false; // Track if player is in knockback mode
+    this.isDown = false; // Track if player is stunned/knocked down
     
     // Create player sprite
     this.sprite = scene.physics.add.sprite(x, y, "golfer_walking_0");
@@ -101,11 +102,46 @@ export class Player {
   disableKnockbackMode() {
     this.isKnockedBack = false;
   }
+  
+  // Switch to damaged sprite during knockback
+  setDamagedSprite() {
+    this.sprite.setTexture("golfer_damaged");
+    // Preserve the current flip state
+    const wasFlipped = this.sprite.flipX;
+    this.sprite.flipX = wasFlipped;
+  }
+  
+  // Restore normal sprite after knockback
+  restoreNormalSprite() {
+    this.sprite.setTexture("golfer_walking_0");
+    // Preserve the current flip state
+    const wasFlipped = this.sprite.flipX;
+    this.sprite.flipX = wasFlipped;
+  }
+  
+  // Set player to down state (stunned)
+  setDownState() {
+    this.isDown = true;
+    this.sprite.setTexture("golfer_down");
+    // Preserve the current flip state
+    const wasFlipped = this.sprite.flipX;
+    this.sprite.flipX = wasFlipped;
+    
+    // Ensure player doesn't fall through floor during down state
+    this.sprite.body.setGravityY(-100); // Counteract gravity
+    this.sprite.body.setVelocityY(0); // Stop vertical movement
+  }
+  
+  // Get up from down state
+  getUp() {
+    this.isDown = false;
+    this.restoreNormalSprite();
+  }
 
   // Update player movement and animations based on input
   update(keys) {
-    // Skip normal movement if player is knocked back
-    if (this.isKnockedBack) {
+    // Skip normal movement if player is knocked back or down
+    if (this.isKnockedBack || this.isDown) {
       return;
     }
     
@@ -340,7 +376,7 @@ export class Player {
       this.sprite.body.setVelocityY(0);
     }
   }
-
+  
   // Check if player is in water and manage swimming sound
   updateWaterDetection() {
     if (!this.terrain || !this.swimmingSound) {
