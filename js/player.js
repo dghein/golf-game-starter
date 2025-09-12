@@ -21,6 +21,7 @@ export class Player {
     this.isInWater = false; // Track if player is currently in water
     this.isKnockedBack = false; // Track if player is in knockback mode
     this.isDown = false; // Track if player is stunned/knocked down
+    this.isInBoatMode = false; // Track if player is in boat sprite mode
     
     // Create player sprite
     this.sprite = scene.physics.add.sprite(x, y, "golfer_walking_0");
@@ -140,6 +141,27 @@ export class Player {
     this.isDown = false;
     this.restoreNormalSprite();
   }
+  
+  // Switch to boat sprite when in water
+  setBoatSprite() {
+    this.isInBoatMode = true;
+    this.sprite.setTexture("golfer_boat");
+    // Preserve the current flip state
+    const wasFlipped = this.sprite.flipX;
+    this.sprite.flipX = wasFlipped;
+    
+    // Stop any current animations
+    this.sprite.anims.stop();
+  }
+  
+  // Return to normal sprite when leaving water
+  setNormalSprite() {
+    this.isInBoatMode = false;
+    this.sprite.setTexture("golfer_walking_0");
+    // Preserve the current flip state
+    const wasFlipped = this.sprite.flipX;
+    this.sprite.flipX = wasFlipped;
+  }
 
   // Update player movement and animations based on input
   update(keys) {
@@ -184,7 +206,11 @@ export class Player {
     if (keys.left.isDown) {
       this.sprite.setVelocityX(-currentSpeed);
       this.sprite.flipX = true;
-      this.sprite.play("walk", true);
+      
+      // Play animation only if not in boat mode
+      if (!this.isInBoatMode) {
+        this.sprite.play("walk", true);
+      }
       
       if (this.isRunning) {
         this.showSpeedLines(-1); // Moving left
@@ -194,7 +220,11 @@ export class Player {
     } else if (keys.right.isDown) {
       this.sprite.setVelocityX(currentSpeed);
       this.sprite.flipX = false;
-      this.sprite.play("walk", true);
+      
+      // Play animation only if not in boat mode
+      if (!this.isInBoatMode) {
+        this.sprite.play("walk", true);
+      }
       
       if (this.isRunning) {
         this.showSpeedLines(1); // Moving right
@@ -203,7 +233,12 @@ export class Player {
       }
     } else {
       this.sprite.setVelocityX(0);
-      this.sprite.anims.stop();
+      
+      // Stop animation only if not in boat mode
+      if (!this.isInBoatMode) {
+        this.sprite.anims.stop();
+      }
+      
       this.hideSpeedLines();
     }
   }
@@ -394,19 +429,23 @@ export class Player {
     const wasInWater = this.isInWater;
     this.isInWater = this.terrain.isBallInWater ? this.terrain.isBallInWater(playerX, playerY) : false;
 
-    // Handle swimming sound based on water state changes
+    // Handle swimming sound and sprite changes based on water state changes
     if (this.isInWater && !wasInWater) {
-      // Player entered water - start swimming sound
+      // Player entered water - start swimming sound and switch to boat sprite
       if (!this.swimmingSound.isPlaying) {
         this.swimmingSound.play();
         console.log('Player entered water - swimming sound started');
       }
+      this.setBoatSprite();
+      console.log('Player switched to boat sprite');
     } else if (!this.isInWater && wasInWater) {
-      // Player exited water - stop swimming sound
+      // Player exited water - stop swimming sound and return to normal sprite
       if (this.swimmingSound.isPlaying) {
         this.swimmingSound.stop();
         console.log('Player exited water - swimming sound stopped');
       }
+      this.setNormalSprite();
+      console.log('Player returned to normal sprite');
     }
   }
 }

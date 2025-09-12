@@ -27,6 +27,7 @@ export default class Hole2Scene extends Phaser.Scene {
         `assets/golfer/golfer_swing_${i}.png`
       );
     }
+    this.load.image("golfer_boat", "assets/golfer/golfer_boat.png");
     // Load sound effects
     this.load.audio("hit", "assets/sounds/hit.mp3");
     this.load.audio("putt", "assets/sounds/putt.mp3");
