@@ -109,6 +109,9 @@ export class Player {
     // Preserve the current flip state
     const wasFlipped = this.sprite.flipX;
     this.sprite.flipX = wasFlipped;
+    
+    // Stop any current animations
+    this.sprite.anims.stop();
   }
   
   // Restore normal sprite after knockback
