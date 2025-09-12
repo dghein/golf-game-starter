@@ -394,6 +394,10 @@ export class Enemy {
       console.log('Fireball sound not available for player hit');
     }
     
+    // Deal damage to player
+    const damageAmount = 15; // 15% health damage per hit
+    this.player.takeDamage(damageAmount);
+    
     // Restore normal state after 2 seconds
     this.scene.time.delayedCall(2000, () => {
       this.player.disableKnockbackMode();
@@ -504,6 +508,10 @@ export class Enemy {
           // Simply stun the player in place
           this.player.enableKnockbackMode();
           this.player.setDamagedSprite();
+          
+          // Deal damage to player (less damage when hit by ball vs direct hit)
+          const damageAmount = 10; // 10% health damage when hit by ball
+          this.player.takeDamage(damageAmount);
           
           // Stun for 2 seconds, then get up
           this.scene.time.delayedCall(2000, () => {

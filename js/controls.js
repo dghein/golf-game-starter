@@ -15,5 +15,7 @@ export function setupWASD(scene) {
     r: Phaser.Input.Keyboard.KeyCodes.R,
     p: Phaser.Input.Keyboard.KeyCodes.P,
     k: Phaser.Input.Keyboard.KeyCodes.K,
+    e: Phaser.Input.Keyboard.KeyCodes.E,
+    esc: Phaser.Input.Keyboard.KeyCodes.ESC,
   });
 }

@@ -157,6 +157,14 @@ export class CourseManager {
     }
     return scorecard;
   }
+
+  // Reset course to Hole 1 (for game restart)
+  resetToHole1() {
+    this.currentHole = 1;
+    this.scores = new Array(this.totalHoles).fill(0);
+    this.totalScore = 0;
+    console.log('Course reset to Hole 1');
+  }
 }
 
 // Global course manager instance

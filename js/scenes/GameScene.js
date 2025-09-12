@@ -564,6 +564,12 @@ export default class Hole1Scene extends Phaser.Scene {
   update() {
     const keys = this.keys;
 
+    // Handle restart on escape key
+    if (Phaser.Input.Keyboard.JustDown(keys.esc)) {
+      this.restartGame();
+      return;
+    }
+
     // Handle club switching
     if (Phaser.Input.Keyboard.JustDown(keys.one)) {
       this.clubManager.selectDriver();
@@ -711,6 +717,22 @@ export default class Hole1Scene extends Phaser.Scene {
     this.flag.setScale(0.8); // Slightly smaller for better proportion
     
     console.log(`Flag created at position: x=${Math.round(pinPosition.x)}, y=${Math.round(terrainHeight + 10)} (10px below terrain)`);
+  }
+
+  // Restart game from Hole 1
+  restartGame() {
+    console.log('Restarting game from Hole 1');
+    
+    // Remove game over message if it exists
+    if (this.player && this.player.removeGameOverMessage) {
+      this.player.removeGameOverMessage();
+    }
+    
+    // Reset course manager to Hole 1
+    courseManager.resetToHole1();
+    
+    // Start Hole 1 scene
+    this.scene.start('Hole1Scene');
   }
 
 }

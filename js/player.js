@@ -23,6 +23,19 @@ export class Player {
     this.isDown = false; // Track if player is stunned/knocked down
     this.isInBoatMode = false; // Track if player is in boat sprite mode
     
+    // Dash properties
+    this.dashSpeed = 800; // Speed of dash movement
+    this.dashDistance = 200; // Distance to dash (in pixels) - increased from 120
+    this.dashCooldown = 2000; // Cooldown between dashes (2 seconds)
+    this.lastDashTime = 0; // Last time dash was used
+    this.isDashing = false; // Track if currently dashing
+    
+    // Health properties
+    this.maxHealth = 100; // Maximum health
+    this.currentHealth = 100; // Current health
+    this.healthBar = null; // Health bar UI element
+    this.healthBarBackground = null; // Health bar background
+    
     // Create player sprite
     this.sprite = scene.physics.add.sprite(x, y, "golfer_walking_0");
     
@@ -44,6 +57,9 @@ export class Player {
 
     // Create speed lines effect (initially hidden)
     this.createSpeedLines();
+    
+    // Create health bar UI
+    this.createHealthBar();
   }
 
   // Create speed lines visual effect
@@ -58,6 +74,41 @@ export class Player {
       line.setVisible(false);
       this.speedLines.push(line);
     }
+  }
+
+  // Create health bar UI
+  createHealthBar() {
+    const barWidth = 100;
+    const barHeight = 8;
+    const barX = 20; // Position from left edge
+    const barY = 20; // Position from top edge
+    
+    // Create health bar background (red)
+    this.healthBarBackground = this.scene.add.rectangle(barX, barY, barWidth, barHeight, 0xff0000, 0.8);
+    this.healthBarBackground.setOrigin(0, 0);
+    this.healthBarBackground.setScrollFactor(0); // Don't scroll with camera
+    this.healthBarBackground.setDepth(1000); // High depth to appear on top
+    
+    // Create health bar foreground (green)
+    this.healthBar = this.scene.add.rectangle(barX, barY, barWidth, barHeight, 0x00ff00, 1.0);
+    this.healthBar.setOrigin(0, 0);
+    this.healthBar.setScrollFactor(0); // Don't scroll with camera
+    this.healthBar.setDepth(1001); // Higher depth than background
+    
+    // Add health text label
+    this.healthText = this.scene.add.text(barX, barY - 15, 'Health', {
+      fontSize: '12px',
+      fill: '#ffffff',
+      stroke: '#000000',
+      strokeThickness: 2,
+      fontFamily: 'Arial'
+    });
+    this.healthText.setOrigin(0, 0);
+    this.healthText.setScrollFactor(0);
+    this.healthText.setDepth(1002);
+    
+    // Update health bar to show current health
+    this.updateHealthBar();
   }
 
   // Get player position
@@ -170,7 +221,18 @@ export class Player {
       return;
     }
     
-    // Update terrain following first
+    // Handle dash input
+    if (Phaser.Input.Keyboard.JustDown(keys.e)) {
+      this.dash();
+      return; // Skip normal movement during dash
+    }
+    
+    // Skip normal movement if currently dashing
+    if (this.isDashing) {
+      return;
+    }
+    
+    // Update terrain following first (but not during dashing)
     this.updateTerrainPosition();
     
     // Check for water detection and manage swimming sound
@@ -397,7 +459,7 @@ export class Player {
 
   // Update player position to follow terrain
   updateTerrainPosition() {
-    if (!this.terrain) return;
+    if (!this.terrain || this.isDashing) return; // Skip terrain following during dash
 
     const currentX = this.sprite.x;
     const terrainHeight = this.terrain.getHeightAtX(currentX);
@@ -417,8 +479,10 @@ export class Player {
   
   // Check if player is in water and manage swimming sound
   updateWaterDetection() {
-    if (!this.terrain || !this.swimmingSound) {
-      console.log('Water detection skipped: terrain or swimmingSound not available');
+    if (!this.terrain || !this.swimmingSound || this.isDashing) {
+      if (!this.isDashing) {
+        console.log('Water detection skipped: terrain or swimmingSound not available');
+      }
       return;
     }
 
@@ -447,5 +511,163 @@ export class Player {
       this.setNormalSprite();
       console.log('Player returned to normal sprite');
     }
+  }
+
+  // Dash method - quick movement in facing direction
+  dash() {
+    const currentTime = this.scene.time.now;
+    
+    console.log(`Dash attempt - Current time: ${currentTime}, Last dash: ${this.lastDashTime}, Cooldown: ${this.dashCooldown}`);
+    console.log(`Dash state - isKnockedBack: ${this.isKnockedBack}, isDown: ${this.isDown}, isDashing: ${this.isDashing}`);
+    
+    // Check if dash is on cooldown or player is in invalid state
+    if (currentTime - this.lastDashTime < this.dashCooldown || 
+        this.isKnockedBack || 
+        this.isDown || 
+        this.isDashing) {
+      console.log('Dash blocked - on cooldown or invalid state');
+      return;
+    }
+    
+    // Determine dash direction based on current facing direction
+    let dashDirection = 1; // Default to right
+    if (this.sprite.flipX) {
+      dashDirection = -1; // Facing left
+    }
+    
+    // Calculate dash target position
+    const dashTargetX = this.sprite.x + (dashDirection * this.dashDistance);
+    
+    // Set dashing state
+    this.isDashing = true;
+    this.lastDashTime = currentTime;
+    
+    // Apply dash velocity
+    this.sprite.body.setVelocityX(dashDirection * this.dashSpeed);
+    
+    // Calculate dash duration in milliseconds
+    const dashDuration = (this.dashDistance / this.dashSpeed) * 1000;
+    console.log(`Dash started - Direction: ${dashDirection > 0 ? 'right' : 'left'}, Duration: ${dashDuration}ms`);
+    
+    // Stop dash after reaching target distance
+    this.scene.time.delayedCall(dashDuration, () => {
+      this.isDashing = false;
+      // Stop horizontal movement
+      this.sprite.body.setVelocityX(0);
+      console.log('Dash completed - isDashing reset to false');
+    });
+    
+    console.log(`Player dashed ${dashDirection > 0 ? 'right' : 'left'} for ${this.dashDistance} pixels`);
+  }
+
+  // Update health bar visual display
+  updateHealthBar() {
+    if (!this.healthBar) return;
+    
+    const healthPercentage = this.currentHealth / this.maxHealth;
+    const barWidth = 100; // Same as createHealthBar width
+    const currentWidth = barWidth * healthPercentage;
+    
+    // Update health bar width
+    this.healthBar.setDisplaySize(currentWidth, 8);
+    
+    // Change color based on health level
+    if (healthPercentage > 0.6) {
+      this.healthBar.setFillStyle(0x00ff00); // Green
+    } else if (healthPercentage > 0.3) {
+      this.healthBar.setFillStyle(0xffff00); // Yellow
+    } else {
+      this.healthBar.setFillStyle(0xff0000); // Red
+    }
+    
+    // Update health text
+    if (this.healthText) {
+      this.healthText.setText(`Health: ${Math.round(this.currentHealth)}/${this.maxHealth}`);
+    }
+  }
+
+  // Take damage from enemy hits
+  takeDamage(damageAmount) {
+    this.currentHealth = Math.max(0, this.currentHealth - damageAmount);
+    this.updateHealthBar();
+    
+    console.log(`Player took ${damageAmount} damage. Health: ${this.currentHealth}/${this.maxHealth}`);
+    
+    // Check if player is defeated
+    if (this.currentHealth <= 0) {
+      this.handleDefeat();
+    }
+  }
+
+  // Handle player defeat
+  handleDefeat() {
+    console.log('Player defeated!');
+    
+    // Set player to down state
+    this.isDown = true;
+    this.setDownState();
+    
+    // Create game over message
+    this.createGameOverMessage();
+  }
+
+  // Create game over message UI
+  createGameOverMessage() {
+    const centerX = this.scene.cameras.main.width / 2;
+    const centerY = this.scene.cameras.main.height / 2;
+    
+    // Create semi-transparent overlay
+    this.gameOverOverlay = this.scene.add.rectangle(centerX, centerY, this.scene.cameras.main.width, this.scene.cameras.main.height, 0x000000, 0.7);
+    this.gameOverOverlay.setScrollFactor(0);
+    this.gameOverOverlay.setDepth(2000);
+    
+    // Create game over text
+    this.gameOverText = this.scene.add.text(centerX, centerY - 50, 'GAME OVER', {
+      fontSize: '48px',
+      fill: '#ff0000',
+      stroke: '#ffffff',
+      strokeThickness: 4,
+      fontFamily: 'Arial',
+      align: 'center'
+    });
+    this.gameOverText.setOrigin(0.5);
+    this.gameOverText.setScrollFactor(0);
+    this.gameOverText.setDepth(2001);
+    
+    // Create restart instruction
+    this.restartText = this.scene.add.text(centerX, centerY + 20, 'Press ESC to restart from Hole 1', {
+      fontSize: '24px',
+      fill: '#ffffff',
+      stroke: '#000000',
+      strokeThickness: 2,
+      fontFamily: 'Arial',
+      align: 'center'
+    });
+    this.restartText.setOrigin(0.5);
+    this.restartText.setScrollFactor(0);
+    this.restartText.setDepth(2002);
+  }
+
+  // Remove game over message
+  removeGameOverMessage() {
+    if (this.gameOverOverlay) {
+      this.gameOverOverlay.destroy();
+      this.gameOverOverlay = null;
+    }
+    if (this.gameOverText) {
+      this.gameOverText.destroy();
+      this.gameOverText = null;
+    }
+    if (this.restartText) {
+      this.restartText.destroy();
+      this.restartText = null;
+    }
+  }
+
+  // Heal player (for future use)
+  heal(healAmount) {
+    this.currentHealth = Math.min(this.maxHealth, this.currentHealth + healAmount);
+    this.updateHealthBar();
+    console.log(`Player healed ${healAmount}. Health: ${this.currentHealth}/${this.maxHealth}`);
   }
 }
