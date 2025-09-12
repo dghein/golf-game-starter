@@ -379,6 +379,21 @@ export class Enemy {
     this.player.sprite.body.setVelocityX(direction * knockbackPower);
     this.player.sprite.body.setVelocityY(0); // No vertical movement
     
+    // Play fireball sound when hitting player
+    if (this.scene && this.scene.fireballSound) {
+      console.log('Playing fireball sound for player hit (from scene)');
+      this.scene.fireballSound.play();
+      // Add screen shake effect
+      this.scene.cameras.main.shake(300, 0.01);
+    } else if (this.fireballSound) {
+      console.log('Playing fireball sound for player hit (from enemy)');
+      this.fireballSound.play();
+      // Add screen shake effect
+      this.scene.cameras.main.shake(300, 0.01);
+    } else {
+      console.log('Fireball sound not available for player hit');
+    }
+    
     // Restore normal state after 2 seconds
     this.scene.time.delayedCall(2000, () => {
       this.player.disableKnockbackMode();
@@ -467,8 +482,12 @@ export class Enemy {
       // Play fireball sound effect from scene
       if (this.scene && this.scene.fireballSound) {
         this.scene.fireballSound.play();
+        // Add screen shake effect
+        this.scene.cameras.main.shake(300, 0.01);
       } else if (this.fireballSound) {
         this.fireballSound.play();
+        // Add screen shake effect
+        this.scene.cameras.main.shake(300, 0.01);
       }
       
       // Check if player is close enough to be knocked back

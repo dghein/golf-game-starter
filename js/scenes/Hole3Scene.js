@@ -327,6 +327,15 @@ export default class Hole3Scene extends Phaser.Scene {
     nextText.setOrigin(0.5);
     nextText.setScrollFactor(0);
     nextText.setDepth(100); // Set high depth to appear on top of all game elements
+    
+    // Remove completion message after 3 seconds
+    this.time.delayedCall(3000, () => {
+      completionText.destroy();
+      if (isHoleInOne && celebrationText) {
+        celebrationText.destroy();
+      }
+      nextText.destroy();
+    });
   }
 
   getScoreName(strokes, par) {
