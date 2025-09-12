@@ -634,8 +634,8 @@ export default class Hole3Scene extends Phaser.Scene {
           this.player.enableKnockbackMode();
           this.player.setDamagedSprite();
           
-          // Stun for 1 second, then get up
-          this.time.delayedCall(1000, () => {
+          // Stun for 2 seconds, then get up
+          this.time.delayedCall(2000, () => {
             this.player.disableKnockbackMode();
             this.player.restoreNormalSprite();
           });

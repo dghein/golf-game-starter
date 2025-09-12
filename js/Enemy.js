@@ -385,8 +385,8 @@ export class Enemy {
           this.player.enableKnockbackMode();
           this.player.setDamagedSprite();
           
-          // Stun for 1 second, then get up
-          this.scene.time.delayedCall(1000, () => {
+          // Stun for 2 seconds, then get up
+          this.scene.time.delayedCall(2000, () => {
             this.player.disableKnockbackMode();
             this.player.restoreNormalSprite();
           });
