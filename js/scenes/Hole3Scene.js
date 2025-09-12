@@ -6,6 +6,7 @@ import { ClubManager, CLUB_TYPES } from "../clubs.js";
 import { WindSystem } from "../wind.js";
 import { Hole3Terrain } from "../Hole3Terrain.js";
 import { courseManager } from "../CourseManager.js";
+import { Enemy } from "../Enemy.js";
 
 export default class Hole3Scene extends Phaser.Scene {
   constructor() {
@@ -15,6 +16,7 @@ export default class Hole3Scene extends Phaser.Scene {
   preload() {
     this.load.image("sky", "assets/course/sky.png");
     this.load.image("flag", "assets/course/flag.png");
+    this.load.image("enemy1_standing", "assets/enemies/enemy1_standing.png");
     for (let i = 0; i < 2; i++) {
       this.load.image(
         `golfer_walking_${i}`,
@@ -94,6 +96,9 @@ export default class Hole3Scene extends Phaser.Scene {
     
     // Set golf ball depth to appear above terrain
     this.golfBall.sprite.setDepth(5);
+
+    // Create enemy in front of the green (after golf ball is created)
+    this.createEnemy();
 
     // Create and set hit sounds for the golf ball
     this.hitSound = this.sound.add("hit", { volume: 0.5 });
@@ -679,6 +684,11 @@ export default class Hole3Scene extends Phaser.Scene {
     
     // Handle camera switching between player and ball
     this.updateCameraFollow();
+    
+    // Update enemy behavior
+    if (this.enemy && this.enemy.isAlive()) {
+      this.enemy.update();
+    }
   }
 
   // Create flag at hole position
@@ -697,5 +707,22 @@ export default class Hole3Scene extends Phaser.Scene {
     this.flag.setScale(0.8); // Slightly smaller for better proportion
     
     console.log(`Flag created at position: x=${Math.round(pinPosition.x)}, y=${Math.round(terrainHeight + 10)} (10px below terrain)`);
+  }
+
+  // Create enemy in front of the green
+  createEnemy() {
+    // Position enemy in front of the green (green starts at x=5000)
+    const enemyX = 4600; // 200 pixels before green starts
+    const enemyY = this.terrain.getHeightAtX(enemyX);
+    
+    // Create enemy
+    this.enemy = new Enemy(this, enemyX, enemyY);
+    
+    // Set references to other game objects (they should be available now)
+    this.enemy.setGolfBall(this.golfBall);
+    this.enemy.setPlayer(this.player);
+    this.enemy.setTerrain(this.terrain);
+    
+    console.log(`Enemy created at position: x=${enemyX}, y=${Math.round(enemyY)}`);
   }
 }
