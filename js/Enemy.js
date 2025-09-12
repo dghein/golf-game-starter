@@ -6,27 +6,28 @@ export class Enemy {
     this.scene = scene;
     
     // Enemy states
-    this.state = 'idle'; // 'idle', 'aggro', 'attacking'
+    this.state = 'idle'; // 'idle', 'aggro', 'swinging'
     this.isAggro = false;
     this.aggroRange = 200; // Distance in pixels to detect golf ball
-    this.attackRange = 100; // Distance in pixels for attack
+    this.attackRange = 80; // Distance in pixels for swing attack
     
     // Enemy properties
     this.health = 100;
     this.maxHealth = 100;
-    this.speed = 80; // Movement speed when aggro
-    this.attackDamage = 25;
-    this.attackCooldown = 2000; // Time between attacks in ms
+    this.speed = 420; // Movement speed when aggro (slightly slower than player's run speed of 480)
+    this.attackCooldown = 3000; // Time between attacks in ms
     this.lastAttackTime = 0;
+    this.isSwinging = false;
     
     // Animation and visual properties
     this.scale = 1.0;
     this.depth = 6; // Above terrain but below UI elements
     
-    // References
-    this.golfBall = null; // Will be set by scene
-    this.player = null; // Will be set by scene
-    this.terrain = null; // Will be set by scene
+  // References
+  this.golfBall = null; // Will be set by scene
+  this.player = null; // Will be set by scene
+  this.terrain = null; // Will be set by scene
+  this.fireballSound = null; // Will be set by scene
     
     // Create enemy sprite
     this.sprite = scene.add.sprite(x, y, "enemy1_standing");
@@ -47,51 +48,14 @@ export class Enemy {
     // Enemy doesn't move initially
     this.sprite.body.setImmovable(true);
     
-    // Health bar properties
-    this.healthBar = null;
-    this.healthBarBg = null;
-    this.createHealthBar();
+    // Start with idle animation
+    this.sprite.play('enemy_idle', true);
     
     // Aggro indicator
     this.aggroIndicator = null;
     this.createAggroIndicator();
-    
-    console.log(`Enemy created at position: x=${x}, y=${y}`);
   }
 
-  // Create health bar above enemy
-  createHealthBar() {
-    const barWidth = 80;
-    const barHeight = 8;
-    const offsetY = -100; // Above enemy
-    
-    // Health bar background
-    this.healthBarBg = this.scene.add.rectangle(
-      this.sprite.x, 
-      this.sprite.y + offsetY, 
-      barWidth, 
-      barHeight, 
-      0x333333
-    );
-    this.healthBarBg.setOrigin(0.5, 0.5);
-    this.healthBarBg.setDepth(this.depth + 1);
-    this.healthBarBg.setStrokeStyle(1, 0xffffff);
-    
-    // Health bar fill
-    this.healthBar = this.scene.add.rectangle(
-      this.sprite.x, 
-      this.sprite.y + offsetY, 
-      barWidth, 
-      barHeight, 
-      0x00ff00
-    );
-    this.healthBar.setOrigin(0.5, 0.5);
-    this.healthBar.setDepth(this.depth + 1);
-    
-    // Initially hide health bar
-    this.healthBar.setVisible(false);
-    this.healthBarBg.setVisible(false);
-  }
 
   // Create aggro indicator (red exclamation mark)
   createAggroIndicator() {
@@ -125,13 +89,18 @@ export class Enemy {
     this.terrain = terrain;
   }
 
+  setFireballSound(fireballSound) {
+    this.fireballSound = fireballSound;
+  }
+  
+  setBossfightSound(bossfightSound) {
+    this.bossfightSound = bossfightSound;
+  }
+
   // Update enemy behavior
   update() {
     // Update terrain following
     this.updateTerrainPosition();
-    
-    // Update health bar position
-    this.updateHealthBar();
     
     // Update aggro indicator position
     this.updateAggroIndicator();
@@ -147,8 +116,8 @@ export class Enemy {
       case 'aggro':
         this.handleAggroState();
         break;
-      case 'attacking':
-        this.handleAttackingState();
+      case 'swinging':
+        this.handleSwingingState();
         break;
     }
   }
@@ -173,29 +142,6 @@ export class Enemy {
     }
   }
 
-  // Update health bar position
-  updateHealthBar() {
-    if (this.healthBar && this.healthBarBg) {
-      const offsetY = -100; // Above enemy
-      this.healthBar.setPosition(this.sprite.x, this.sprite.y + offsetY);
-      this.healthBarBg.setPosition(this.sprite.x, this.sprite.y + offsetY);
-      
-      // Update health bar width based on current health
-      const healthPercent = this.health / this.maxHealth;
-      const maxWidth = 80;
-      const currentWidth = maxWidth * healthPercent;
-      this.healthBar.width = currentWidth;
-      
-      // Change color based on health
-      if (healthPercent > 0.6) {
-        this.healthBar.setFillStyle(0x00ff00); // Green
-      } else if (healthPercent > 0.3) {
-        this.healthBar.setFillStyle(0xffff00); // Yellow
-      } else {
-        this.healthBar.setFillStyle(0xff0000); // Red
-      }
-    }
-  }
 
   // Update aggro indicator position
   updateAggroIndicator() {
@@ -213,17 +159,14 @@ export class Enemy {
       this.golfBall.x, this.golfBall.y
     );
 
-    // Check if ball is within aggro range and not stabilized
-    if (distance <= this.aggroRange && !this.golfBall.isStabilized) {
+    // Check if ball is within aggro range (regardless of ball state)
+    if (distance <= this.aggroRange) {
       if (!this.isAggro) {
         this.enterAggroState();
       }
-    } else if (distance > this.aggroRange * 1.5) {
-      // Exit aggro if ball moves far away
-      if (this.isAggro) {
-        this.exitAggroState();
-      }
     }
+    // Once aggro, stay aggro - no exit condition!
+    // The enemy will pursue the ball relentlessly until it's defeated or the hole is completed
   }
 
   // Enter aggro state
@@ -231,26 +174,48 @@ export class Enemy {
     this.isAggro = true;
     this.state = 'aggro';
     
-    // Show health bar and aggro indicator
-    this.healthBar.setVisible(true);
-    this.healthBarBg.setVisible(true);
-    this.aggroIndicator.setVisible(true);
+    // Play bossfight music when entering aggro state
+    try {
+      // Stop any existing bossfight music first, then play
+      if (this.bossfightSound) {
+        this.bossfightSound.stop();
+        this.bossfightSound.play();
+      }
+      
+      // Also try playing from scene as backup
+      if (this.scene && this.scene.bossfightSound) {
+        this.scene.bossfightSound.stop();
+        this.scene.bossfightSound.play();
+      }
+    } catch (error) {
+      console.error('Error playing bossfight music:', error);
+    }
     
-    // Add pulsing effect to aggro indicator
+    // Flash red briefly when initially aggroing
+    this.sprite.setTint(0xff6666);
+    this.scene.tweens.add({
+      targets: this.sprite,
+      tint: 0xffffff, // Return to normal color
+      duration: 500,
+      ease: 'Power2'
+    });
+    
+    // Show exclamation mark briefly
+    this.aggroIndicator.setVisible(true);
     this.scene.tweens.add({
       targets: this.aggroIndicator,
       scaleX: 1.5,
       scaleY: 1.5,
       duration: 300,
       yoyo: true,
-      repeat: -1,
-      ease: 'Power2'
+      repeat: 2,
+      ease: 'Power2',
+      onComplete: () => {
+        // Hide exclamation mark after brief flash
+        this.aggroIndicator.setVisible(false);
+        this.aggroIndicator.setScale(1);
+      }
     });
-    
-    // Add red tint to enemy sprite
-    this.sprite.setTint(0xff6666);
-    
-    console.log('Enemy entered AGGRO state!');
   }
 
   // Exit aggro state
@@ -258,25 +223,22 @@ export class Enemy {
     this.isAggro = false;
     this.state = 'idle';
     
-    // Hide health bar and aggro indicator
-    this.healthBar.setVisible(false);
-    this.healthBarBg.setVisible(false);
+    // Hide aggro indicator
     this.aggroIndicator.setVisible(false);
     
     // Stop aggro indicator animation
     this.scene.tweens.killTweensOf(this.aggroIndicator);
     this.aggroIndicator.setScale(1);
     
-    // Remove red tint from enemy sprite
+    // Ensure sprite is back to normal color (in case it wasn't already)
     this.sprite.clearTint();
-    
-    console.log('Enemy returned to IDLE state');
   }
 
   // Handle idle state
   handleIdleState() {
     // Enemy just stands there menacingly
     this.sprite.body.setVelocityX(0);
+    this.sprite.play('enemy_idle', true);
   }
 
   // Handle aggro state
@@ -288,34 +250,33 @@ export class Enemy {
       this.golfBall.x, this.golfBall.y
     );
 
-    // Move towards the golf ball
-    const direction = this.golfBall.x > this.sprite.x ? 1 : -1;
-    this.sprite.body.setVelocityX(direction * this.speed);
-    
-    // Flip sprite to face the ball
-    this.sprite.flipX = direction < 0;
-
     // Check if close enough to attack
     if (distance <= this.attackRange) {
-      this.state = 'attacking';
-      this.attack();
+      this.performSwingAttack();
+    } else {
+      // Move towards the golf ball
+      const direction = this.golfBall.x > this.sprite.x ? 1 : -1;
+      this.sprite.body.setVelocityX(direction * this.speed);
+      
+      // Flip sprite to face the ball and play walking animation
+      this.sprite.flipX = direction < 0;
+      this.sprite.play('enemy_walk', true);
     }
   }
 
-  // Handle attacking state
-  handleAttackingState() {
-    // Stop movement while attacking
+  // Handle swinging state
+  handleSwingingState() {
+    // Stop movement while swinging
     this.sprite.body.setVelocityX(0);
     
-    // Return to aggro state after attack cooldown
-    const currentTime = this.scene.time.now;
-    if (currentTime - this.lastAttackTime >= this.attackCooldown) {
-      this.state = 'aggro';
+    // Check if swing animation is complete
+    if (!this.isSwinging) {
+      this.state = 'aggro'; // Return to aggro state
     }
   }
 
-  // Perform attack
-  attack() {
+  // Perform swing attack
+  performSwingAttack() {
     const currentTime = this.scene.time.now;
     
     // Check attack cooldown
@@ -324,46 +285,70 @@ export class Enemy {
     }
 
     this.lastAttackTime = currentTime;
+    this.isSwinging = true;
+    this.state = 'swinging';
     
-    // Attack animation effect
-    this.scene.tweens.add({
-      targets: this.sprite,
-      scaleX: 1.2,
-      scaleY: 1.2,
-      duration: 200,
-      yoyo: true,
-      ease: 'Power2',
-      onComplete: () => {
-        this.sprite.setScale(this.scale);
+    // Stop movement
+    this.sprite.body.setVelocityX(0);
+    
+    // Face the ball
+    const direction = this.golfBall.x > this.sprite.x ? 1 : -1;
+    this.sprite.flipX = direction < 0;
+    
+    // Play swing animation
+    this.sprite.play('enemy_swing', true);
+    
+    // Listen for animation complete
+    this.sprite.once('animationcomplete', (anim) => {
+      if (anim.key === 'enemy_swing') {
+        this.isSwinging = false;
+        this.hitBallWithInsanePower(direction);
       }
     });
-
-    // Check if golf ball is still in range for damage
-    if (this.golfBall) {
-      const distance = Phaser.Math.Distance.Between(
-        this.sprite.x, this.sprite.y,
-        this.golfBall.x, this.golfBall.y
-      );
-
-      if (distance <= this.attackRange) {
-        // Deal damage to golf ball (or player)
-        this.dealDamage();
-      }
-    }
-
-    console.log('Enemy attacked!');
   }
 
-  // Deal damage (placeholder for now)
-  dealDamage() {
-    // For now, just log the attack
-    // Later this could affect the golf ball's trajectory or player health
-    console.log(`Enemy dealt ${this.attackDamage} damage!`);
+  // Hit the ball with insane power
+  hitBallWithInsanePower(direction) {
+    if (!this.golfBall) return;
     
-    // Could add effects like:
-    // - Push the golf ball away
-    // - Reduce player health
-    // - Add visual effects
+    // Calculate distance to ball
+    const distance = Phaser.Math.Distance.Between(
+      this.sprite.x, this.sprite.y,
+      this.golfBall.x, this.golfBall.y
+    );
+    
+    // Only hit if ball is still in range
+    if (distance <= this.attackRange) {
+      // INSANE power - much stronger than player
+      const insanePower = 3500; // Increased from 2500 - MASSIVE power increase
+      const launchAngle = -1500; // Increased from -1200 - Much stronger upward angle
+      
+      // Add some randomness to make it unpredictable
+      const powerVariation = 0.9 + Math.random() * 0.2; // 90-110% power variation
+      const angleVariation = 0.95 + Math.random() * 0.1; // 95-105% angle variation
+      
+      const finalPower = insanePower * powerVariation;
+      const finalAngle = launchAngle * angleVariation;
+      
+      // Unstabilize the ball before applying new velocity
+      this.golfBall.unstabilizeBall();
+      
+      // Mark ball as hit by enemy to prevent hole completion
+      this.golfBall.hitByEnemy = true;
+      
+      // Apply insane hit
+      this.golfBall.setVelocity(
+        direction * finalPower,
+        finalAngle
+      );
+      
+      // Play fireball sound effect from scene
+      if (this.scene && this.scene.fireballSound) {
+        this.scene.fireballSound.play();
+      } else if (this.fireballSound) {
+        this.fireballSound.play();
+      }
+    }
   }
 
   // Take damage
@@ -379,8 +364,6 @@ export class Enemy {
       ease: 'Power2'
     });
 
-    console.log(`Enemy took ${damage} damage! Health: ${this.health}/${this.maxHealth}`);
-
     // Check if enemy is defeated
     if (this.health <= 0) {
       this.defeat();
@@ -389,8 +372,6 @@ export class Enemy {
 
   // Defeat the enemy
   defeat() {
-    console.log('Enemy defeated!');
-    
     // Play defeat animation
     this.scene.tweens.add({
       targets: this.sprite,
@@ -402,8 +383,6 @@ export class Enemy {
       onComplete: () => {
         // Remove enemy from scene
         this.sprite.destroy();
-        if (this.healthBar) this.healthBar.destroy();
-        if (this.healthBarBg) this.healthBarBg.destroy();
         if (this.aggroIndicator) this.aggroIndicator.destroy();
       }
     });

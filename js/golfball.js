@@ -6,6 +6,7 @@ export class GolfBall {
     this.scene = scene;
     this.hitRecently = false;
     this.swooshPlayed = false;
+    this.hitByEnemy = false; // Track if ball was hit by enemy
     
     // Distance tracking
     this.startX = x;
@@ -326,6 +327,9 @@ export class GolfBall {
 
   // Hit the ball with realistic golf physics
   hit(player, clubManager = null, powerMultiplier = 1.0, hasBackspin = false) {
+    // Reset enemy hit flag when player hits the ball
+    this.hitByEnemy = false;
+    
     // Calculate hit direction based on player facing direction
     const hitDirection = player.flipX ? -1 : 1;
     
@@ -630,6 +634,11 @@ export class GolfBall {
       return;
     }
     
+    // Don't complete hole if ball was hit by enemy
+    if (this.hitByEnemy) {
+      return;
+    }
+    
     if (this.terrain && this.terrain.isBallInTargetCircle(this.sprite.x, this.sprite.y)) {
       console.log('HOLE COMPLETED! Ball entered target circle and disappeared!');
       
@@ -711,6 +720,11 @@ export class GolfBall {
   // Check if ball has landed in bunker
   checkBunkerCollision() {
     if (this.terrain && this.terrain.isBallInBunker && this.terrain.isBallInBunker(this.sprite.x, this.sprite.y)) {
+      // Don't apply bunker effects if ball was hit by enemy
+      if (this.hitByEnemy) {
+        return;
+      }
+      
       console.log('Ball landed in bunker! Ball will be harder to hit from sand...');
       
       // Apply sand physics - reduce ball speed but keep it playable

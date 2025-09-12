@@ -17,6 +17,10 @@ export default class Hole3Scene extends Phaser.Scene {
     this.load.image("sky", "assets/course/sky.png");
     this.load.image("flag", "assets/course/flag.png");
     this.load.image("enemy1_standing", "assets/enemies/enemy1_standing.png");
+    this.load.image("enemy1_walking1", "assets/enemies/enemy1_walking1.png");
+    this.load.image("enemy1_walking2", "assets/enemies/enemy1_walking2.png");
+    this.load.image("enemy1_swing1", "assets/enemies/enemy1_swing1.png");
+    this.load.image("enemy1_swing2", "assets/enemies/enemy1_swing2.png");
     for (let i = 0; i < 2; i++) {
       this.load.image(
         `golfer_walking_${i}`,
@@ -39,18 +43,11 @@ export default class Hole3Scene extends Phaser.Scene {
     this.load.audio("swimming", "assets/sounds/swimming.mp3");
     this.load.audio("bounce", "assets/sounds/bounce.mp3");
     this.load.audio("background", "assets/sounds/background.mp3");
-    
-    // Debug: Log when sounds are loaded
-    this.load.on('filecomplete-audio-clap', () => {
-      console.log('Clap sound file loaded successfully');
-    });
-    this.load.on('filecomplete-audio-cheer', () => {
-      console.log('Cheer sound file loaded successfully');
-    });
+    this.load.audio("fireball", "assets/sounds/fireball.mp3");
+    this.load.audio("bossfight", "assets/sounds/bossfight1.mp3");
   }
 
   create() {
-    console.log(`Creating Hole ${courseManager.getCurrentHole()} - Par ${courseManager.getCurrentPar()}`);
     
     // Set world bounds for Hole 3 (300 yards = 6000 pixels)
     this.physics.world.setBounds(0, -1000, 6000, 2500);
@@ -66,6 +63,9 @@ export default class Hole3Scene extends Phaser.Scene {
 
     // Create animations
     createGolferAnimations(this);
+    
+    // Create enemy walking animations
+    this.createEnemyAnimations();
 
     // Setup WASD controls
     this.keys = setupWASD(this);
@@ -116,11 +116,13 @@ export default class Hole3Scene extends Phaser.Scene {
     // Create and set clap sound for hole completion
     this.clapSound = this.sound.add("clap", { volume: 0.8 });
     this.cheerSound = this.sound.add("cheer", { volume: 0.8 });
-    console.log('Clap sound created:', this.clapSound);
-    console.log('Cheer sound created:', this.cheerSound);
     this.golfBall.setClapSound(this.clapSound);
     this.golfBall.setCheerSound(this.cheerSound);
-    console.log('Clap sound set on golf ball');
+    
+    // Create fireball sound for enemy attacks
+    this.fireballSound = this.sound.add("fireball", { volume: 0.8 });
+    this.bossfightSound = this.sound.add("bossfight", { volume: 0.6, loop: true });
+    
     
     // Set up camera switching callback
     this.golfBall.setOnBallHitCallback(() => {
@@ -131,7 +133,6 @@ export default class Hole3Scene extends Phaser.Scene {
     // Set up water penalty callback
     this.golfBall.setOnWaterPenaltyCallback(() => {
       this.incrementShotCounter(); // Add penalty stroke
-      console.log('Water penalty! Adding penalty stroke.');
     });
     
     // Set up hole completion callback
@@ -227,8 +228,6 @@ export default class Hole3Scene extends Phaser.Scene {
   }
 
   completeHole() {
-    console.log(`Hole ${courseManager.getCurrentHole()} completed in ${this.shotCount} strokes!`);
-    
     // Record score for this hole
     courseManager.recordScore(this.shotCount);
     
@@ -355,7 +354,6 @@ export default class Hole3Scene extends Phaser.Scene {
         this.scene.start(nextSceneName);
       } else {
         // For now, just restart Hole 1 (until we create more holes)
-        console.log(`Scene ${nextSceneName} not found, restarting Hole 1`);
         this.scene.start('Hole1Scene');
       }
     } else {
@@ -365,7 +363,6 @@ export default class Hole3Scene extends Phaser.Scene {
   }
 
   showCourseComplete() {
-    console.log('Course Complete!');
     // TODO: Show final scorecard and course completion screen
   }
 
@@ -546,20 +543,17 @@ export default class Hole3Scene extends Phaser.Scene {
     this.shotCount++;
     this.updateShotCounterUI();
     this.updateHoleInfoUI(); // Update hole info with new score
-    console.log(`Shot ${this.shotCount} taken`);
   }
 
   resetShotCounter() {
     this.shotCount = 0;
     this.updateShotCounterUI();
-    console.log('Shot counter reset for new hole');
   }
 
   switchCameraToBall() {
     if (!this.cameraFollowingBall) {
       this.cameras.main.startFollow(this.golfBall.sprite);
       this.cameraFollowingBall = true;
-      console.log('Camera switched to following ball');
     }
   }
   
@@ -567,7 +561,6 @@ export default class Hole3Scene extends Phaser.Scene {
     if (this.cameraFollowingBall) {
       this.cameras.main.startFollow(this.player.sprite);
       this.cameraFollowingBall = false;
-      console.log('Camera switched back to following player');
     }
   }
   
@@ -592,25 +585,21 @@ export default class Hole3Scene extends Phaser.Scene {
     if (Phaser.Input.Keyboard.JustDown(keys.one)) {
       this.clubManager.selectDriver();
       this.updateClubUI();
-      console.log('Switched to Driver');
     }
     
     if (Phaser.Input.Keyboard.JustDown(keys.two)) {
       this.clubManager.selectPutter();
       this.updateClubUI();
-      console.log('Switched to Putter');
     }
     
     if (Phaser.Input.Keyboard.JustDown(keys.three)) {
       this.clubManager.selectWedge();
       this.updateClubUI();
-      console.log('Switched to Wedge');
     }
     
     if (Phaser.Input.Keyboard.JustDown(keys.four)) {
       this.clubManager.selectIron();
       this.updateClubUI();
-      console.log('Switched to Iron');
     }
     
     // Handle manual camera switching
@@ -625,17 +614,6 @@ export default class Hole3Scene extends Phaser.Scene {
     // Handle shot counter reset
     if (Phaser.Input.Keyboard.JustDown(keys.r)) {
       this.resetShotCounter();
-    }
-    
-    // Debug: Test clap sound with 'p' key
-    if (Phaser.Input.Keyboard.JustDown(keys.p)) {
-      console.log('Testing clap sound...');
-      if (this.clapSound) {
-        this.clapSound.play();
-        console.log('Clap sound played manually');
-      } else {
-        console.log('Clap sound not available for manual test');
-      }
     }
 
     // Update player movement and animations
@@ -705,15 +683,13 @@ export default class Hole3Scene extends Phaser.Scene {
     this.flag.setOrigin(0.5, 1); // Bottom-center origin so flag sits on ground
     this.flag.setDepth(10); // Above other game elements
     this.flag.setScale(0.8); // Slightly smaller for better proportion
-    
-    console.log(`Flag created at position: x=${Math.round(pinPosition.x)}, y=${Math.round(terrainHeight + 10)} (10px below terrain)`);
   }
 
   // Create enemy in front of the green
   createEnemy() {
     // Position enemy in front of the green (green starts at x=5000)
     const enemyX = 4600; // 200 pixels before green starts
-    const enemyY = this.terrain.getHeightAtX(enemyX);
+    const enemyY = this.terrain.getHeightAtX(enemyX) - 5; // Move down 5 pixels to sit on terrain
     
     // Create enemy
     this.enemy = new Enemy(this, enemyX, enemyY);
@@ -722,7 +698,69 @@ export default class Hole3Scene extends Phaser.Scene {
     this.enemy.setGolfBall(this.golfBall);
     this.enemy.setPlayer(this.player);
     this.enemy.setTerrain(this.terrain);
+    this.enemy.setFireballSound(this.fireballSound);
+    this.enemy.setBossfightSound(this.bossfightSound);
     
-    console.log(`Enemy created at position: x=${enemyX}, y=${Math.round(enemyY)}`);
+    // Set up collision between enemy and golf ball
+    this.physics.add.collider(this.golfBall.sprite, this.enemy.sprite, this.handleBallEnemyCollision, null, this);
   }
+
+  // Create enemy walking animations
+  createEnemyAnimations() {
+    // Enemy walking animation (right-facing)
+    this.anims.create({
+      key: 'enemy_walk',
+      frames: [
+        { key: 'enemy1_walking1' },
+        { key: 'enemy1_walking2' }
+      ],
+      frameRate: 8, // Slower walking animation
+      repeat: -1 // Loop indefinitely
+    });
+    
+    // Enemy idle animation (standing)
+    this.anims.create({
+      key: 'enemy_idle',
+      frames: [
+        { key: 'enemy1_standing' }
+      ],
+      frameRate: 1,
+      repeat: -1
+    });
+    
+    // Enemy swing animation (right-facing)
+    this.anims.create({
+      key: 'enemy_swing',
+      frames: [
+        { key: 'enemy1_swing1' },
+        { key: 'enemy1_swing2' }
+      ],
+      frameRate: 12, // Fast swing animation
+      repeat: 0 // Play once
+    });
+  }
+
+  // Handle collision between golf ball and enemy
+  handleBallEnemyCollision(ballSprite, enemySprite) {
+    // Calculate bounce direction based on ball's approach
+    const ballVel = this.golfBall.getVelocity();
+    const ballSpeed = Math.sqrt(ballVel.x * ballVel.x + ballVel.y * ballVel.y);
+    
+    // Only bounce if ball has significant speed
+    if (ballSpeed > 50) {
+      // Calculate bounce direction (away from enemy)
+      const enemyX = enemySprite.x;
+      const ballX = ballSprite.x;
+      const direction = ballX > enemyX ? 1 : -1; // Bounce away from enemy
+      
+      // Apply bounce with reduced speed
+      const bounceSpeed = ballSpeed * 0.6; // Reduce speed by 40%
+      const bounceAngle = Math.random() * 0.5 - 0.25; // Random angle variation
+      
+      this.golfBall.setVelocity(
+        direction * bounceSpeed * Math.cos(bounceAngle),
+        -Math.abs(bounceSpeed * Math.sin(bounceAngle)) // Always bounce upward
+        );
+      }
+    }
 }

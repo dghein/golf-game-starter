@@ -32,6 +32,9 @@ export class Hole3Terrain {
     
     // Add green overlay
     this.addGreenOverlay();
+    
+    // Add bunker near the green
+    this.addBunkerOverlay();
   }
 
   generateTerrain() {
@@ -217,6 +220,87 @@ export class Hole3Terrain {
     }
   }
 
+  addBunkerOverlay() {
+    // Add bunker as integrated terrain area (brown/sand colored)
+    const bunkerWidth = 400; // 20 yards wide
+    const bunkerStartX = this.greenStartX - 300; // 150 pixels before green starts
+    const bunkerEndX = bunkerStartX + bunkerWidth;
+    
+    // Create bunker area graphics
+    const bunkerGraphics = this.scene.add.graphics();
+    bunkerGraphics.setDepth(2); // Same depth as green overlay
+    bunkerGraphics.fillStyle(0xD2B48C); // Tan/sand color
+    
+    // Find bunker area points from height map
+    const bunkerPoints = this.heightMap.filter(point => 
+      point.x >= bunkerStartX && point.x <= bunkerEndX
+    );
+    
+    if (bunkerPoints.length > 0) {
+      bunkerGraphics.beginPath();
+      
+      // Start from bottom of bunker area
+      bunkerGraphics.moveTo(bunkerPoints[0].x, 768);
+      
+      // Draw bunker surface following terrain
+      bunkerPoints.forEach((point, index) => {
+        if (index === 0) {
+          bunkerGraphics.lineTo(point.x, point.y);
+        } else {
+          bunkerGraphics.lineTo(point.x, point.y);
+        }
+      });
+      
+      // Close the bunker area
+      const lastPoint = bunkerPoints[bunkerPoints.length - 1];
+      bunkerGraphics.lineTo(lastPoint.x, 768);
+      bunkerGraphics.lineTo(bunkerPoints[0].x, 768);
+      bunkerGraphics.closePath();
+      bunkerGraphics.fillPath();
+      
+      // Add bunker texture/sand details
+      this.addBunkerTexture(bunkerGraphics, bunkerPoints);
+    }
+    
+    // Store bunker area properties for collision detection
+    this.bunkerStartX = bunkerStartX;
+    this.bunkerEndX = bunkerEndX;
+    this.bunkerLevel = bunkerPoints.length > 0 ? bunkerPoints[Math.floor(bunkerPoints.length / 2)].y : 600;
+  }
+
+  addBunkerTexture(graphics, bunkerPoints) {
+    // Add subtle sand texture
+    graphics.lineStyle(1, 0xBC9A6A, 0.3); // Darker sand color for texture
+    
+    // Draw random sand grain lines
+    const lineSpacing = 12;
+    const startY = Math.min(...bunkerPoints.map(p => p.y));
+    const endY = Math.max(...bunkerPoints.map(p => p.y));
+    
+    for (let y = startY; y <= endY; y += lineSpacing) {
+      // Find intersection points with bunker boundaries
+      const intersections = [];
+      for (let i = 0; i < bunkerPoints.length; i++) {
+        const p1 = bunkerPoints[i];
+        const p2 = bunkerPoints[(i + 1) % bunkerPoints.length];
+        
+        if ((p1.y <= y && p2.y >= y) || (p1.y >= y && p2.y <= y)) {
+          const t = (y - p1.y) / (p2.y - p1.y);
+          const x = p1.x + t * (p2.x - p1.x);
+          intersections.push(x);
+        }
+      }
+      
+      if (intersections.length >= 2) {
+        intersections.sort((a, b) => a - b);
+        // Add some randomness to sand texture
+        const randomOffset = (Math.random() - 0.5) * 4;
+        graphics.moveTo(intersections[0] + randomOffset, y);
+        graphics.lineTo(intersections[intersections.length - 1] + randomOffset, y);
+      }
+    }
+  }
+
   getHeightAtX(x) {
     // Find the closest height map points
     const segmentWidth = this.width / this.segments;
@@ -250,7 +334,12 @@ export class Hole3Terrain {
   }
 
   isBallInBunker(ballX, ballY) {
-    // No bunkers on this basic hole
+    // Check if ball is in the bunker near the green
+    if (this.bunkerStartX && this.bunkerEndX) {
+      return ballX >= this.bunkerStartX && 
+             ballX <= this.bunkerEndX && 
+             ballY >= this.bunkerLevel - 20; // Trigger collision slightly above bunker surface
+    }
     return false;
   }
 
