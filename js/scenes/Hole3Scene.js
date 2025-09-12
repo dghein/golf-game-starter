@@ -615,6 +615,48 @@ export default class Hole3Scene extends Phaser.Scene {
     if (Phaser.Input.Keyboard.JustDown(keys.r)) {
       this.resetShotCounter();
     }
+    
+    // Debug: Test player knockback with 'k' key
+    if (Phaser.Input.Keyboard.JustDown(keys.k)) {
+      console.log('Testing player knockback...');
+      if (this.enemy && this.player) {
+        const distance = Phaser.Math.Distance.Between(
+          this.enemy.sprite.x, this.enemy.sprite.y,
+          this.player.sprite.x, this.player.sprite.y
+        );
+        console.log(`Player distance from enemy: ${Math.round(distance)} pixels`);
+        
+        if (distance <= 150) {
+          // Temporarily make player physics more bouncy like golf ball
+          this.player.sprite.body.setBounce(0.8); // High bounce for dramatic effect
+          this.player.sprite.body.setDrag(50); // Air resistance
+          this.player.sprite.body.setFriction(0.95); // Ground friction
+          this.player.sprite.body.setGravityY(500); // Normal gravity for falling
+          this.player.sprite.body.setMaxVelocity(2000, 1200); // High max velocity
+          
+          // Enable knockback mode to prevent normal movement from interfering
+          this.player.enableKnockbackMode();
+          
+          // Apply test knockback with dramatic force
+          this.player.sprite.body.setVelocity(1500, -800);
+          console.log('DRAMATIC test knockback applied to player - they should fly!');
+          
+          // Restore normal player physics after 3 seconds
+          this.time.delayedCall(3000, () => {
+            this.player.sprite.body.setBounce(0); // No bounce
+            this.player.sprite.body.setDrag(0); // No air resistance
+            this.player.sprite.body.setFriction(1); // Full friction
+            this.player.sprite.body.setGravityY(-100); // Counteract gravity
+            this.player.sprite.body.setMaxVelocity(1000, 1000); // Normal max velocity
+            this.player.disableKnockbackMode(); // Restore normal movement
+          });
+        } else {
+          console.log('Player too far for test knockback');
+        }
+      } else {
+        console.log('Enemy or player not available for test');
+      }
+    }
 
     // Update player movement and animations
     this.player.update(keys);

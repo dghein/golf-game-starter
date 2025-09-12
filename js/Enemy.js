@@ -348,6 +348,54 @@ export class Enemy {
       } else if (this.fireballSound) {
         this.fireballSound.play();
       }
+      
+      // Check if player is close enough to be knocked back
+      if (this.player) {
+        const playerDistance = Phaser.Math.Distance.Between(
+          this.sprite.x, this.sprite.y,
+          this.player.sprite.x, this.player.sprite.y
+        );
+        
+        console.log(`Enemy hit ball - Player distance: ${Math.round(playerDistance)} pixels`);
+        
+        // If player is within 150 pixels, knock them back
+        if (playerDistance <= 150) {
+          const knockbackPower = finalPower * 0.8; // Increased from 0.5 - Much stronger knockback
+          const knockbackAngle = finalAngle * 0.7; // Increased from 0.5 - Higher trajectory
+          
+          // Temporarily make player physics more bouncy like golf ball
+          this.player.sprite.body.setBounce(0.8); // High bounce for dramatic effect
+          this.player.sprite.body.setDrag(50); // Air resistance
+          this.player.sprite.body.setFriction(0.95); // Ground friction
+          this.player.sprite.body.setGravityY(500); // Normal gravity for falling
+          this.player.sprite.body.setMaxVelocity(2000, 1200); // High max velocity
+          
+          // Enable knockback mode to prevent normal movement from interfering
+          this.player.enableKnockbackMode();
+          
+          // Apply knockback to player
+          this.player.sprite.body.setVelocity(
+            direction * knockbackPower,
+            knockbackAngle
+          );
+          
+          // Restore normal player physics after 3 seconds
+          this.scene.time.delayedCall(3000, () => {
+            this.player.sprite.body.setBounce(0); // No bounce
+            this.player.sprite.body.setDrag(0); // No air resistance
+            this.player.sprite.body.setFriction(1); // Full friction
+            this.player.sprite.body.setGravityY(-100); // Counteract gravity
+            this.player.sprite.body.setMaxVelocity(1000, 1000); // Normal max velocity
+            this.player.disableKnockbackMode(); // Restore normal movement
+          });
+          
+          console.log(`Player knocked back by enemy hit! Distance: ${Math.round(playerDistance)}, Power: ${Math.round(knockbackPower)}`);
+        } else {
+          console.log(`Player too far for knockback: ${Math.round(playerDistance)} pixels`);
+        }
+      } else {
+        console.log('No player reference available for knockback');
+      }
     }
   }
 

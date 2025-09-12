@@ -19,6 +19,7 @@ export class Player {
     this.groundOffset = 60; // Distance above ground to maintain (adjusted for proper positioning)
     this.swimmingSound = null; // Reference to swimming sound
     this.isInWater = false; // Track if player is currently in water
+    this.isKnockedBack = false; // Track if player is in knockback mode
     
     // Create player sprite
     this.sprite = scene.physics.add.sprite(x, y, "golfer_walking_0");
@@ -90,9 +91,24 @@ export class Player {
   setSwimmingSound(swimmingSound) {
     this.swimmingSound = swimmingSound;
   }
+  
+  // Enable knockback mode (disables normal movement)
+  enableKnockbackMode() {
+    this.isKnockedBack = true;
+  }
+  
+  // Disable knockback mode (restores normal movement)
+  disableKnockbackMode() {
+    this.isKnockedBack = false;
+  }
 
   // Update player movement and animations based on input
   update(keys) {
+    // Skip normal movement if player is knocked back
+    if (this.isKnockedBack) {
+      return;
+    }
+    
     // Update terrain following first
     this.updateTerrainPosition();
     
