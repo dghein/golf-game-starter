@@ -14,7 +14,7 @@ export class Enemy {
     // Enemy properties
     this.health = 100;
     this.maxHealth = 100;
-    this.speed = 420; // Movement speed when aggro (slightly slower than player's run speed of 480)
+    this.speed = 350; // Movement speed when aggro (reduced from 420)
     this.attackCooldown = 3000; // Time between attacks in ms
     this.lastAttackTime = 0;
     this.isSwinging = false;
@@ -367,7 +367,7 @@ export class Enemy {
     const direction = this.player.sprite.x > this.sprite.x ? 1 : -1;
     
     // Apply horizontal knockback along terrain
-    const knockbackPower = 800; // Horizontal knockback power
+    const knockbackPower = 200; // Horizontal knockback power (reduced by 3/4 from 800)
     
     // Enable knockback mode to prevent normal movement from interfering
     this.player.enableKnockbackMode();

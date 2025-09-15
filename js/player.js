@@ -42,7 +42,7 @@ export class Player {
     
     // Ball inventory properties (enabled on all holes)
     this.ballCount = 0; // Number of golf balls in inventory
-    this.maxBalls = 10; // Maximum number of balls player can carry
+    this.maxBalls = 20; // Maximum number of balls player can carry
     this.ballInventoryUI = null; // UI element for ball count display
     
     // Create player sprite
@@ -84,6 +84,7 @@ export class Player {
     for (let i = 0; i < 5; i++) {
       const line = this.scene.add.rectangle(0, 0, lineLengths[i], 2, 0xffffff, 0.8);
       line.setVisible(false);
+      line.setDepth(2); // Above trees (depth 1) but below player (depth 5)
       this.speedLines.push(line);
     }
   }
@@ -798,8 +799,14 @@ export class Player {
       const dropX = playerX + Math.cos(angle) * distance;
       const dropY = playerY + Math.sin(angle) * distance - 30; // Drop slightly above player
       
+      // Determine if this ball should be a healing ball (1/2 chance for testing)
+      const randomValue = Math.random();
+      const isHealingBall = randomValue < 0.5;
+      
+      console.log(`Ball ${i + 1}: random=${randomValue.toFixed(3)}, isHealing=${isHealingBall}`);
+      
       // Create dropped ball
-      const droppedBall = new this.scene.DroppedBall(this.scene, dropX, dropY);
+      const droppedBall = new this.scene.DroppedBall(this.scene, dropX, dropY, isHealingBall);
       
       // Add some random velocity to make balls scatter more
       const scatterVelX = (Math.random() - 0.5) * 400; // Increased from 200
@@ -809,8 +816,14 @@ export class Player {
       // Add to scene's dropped balls array
       this.scene.droppedBalls.push(droppedBall);
       
-      console.log(`Dropped ball ${i + 1} at x=${Math.round(dropX)}, y=${Math.round(dropY)}`);
+      const ballType = isHealingBall ? 'healing' : 'regular';
+      console.log(`Dropped ${ballType} ball ${i + 1} at x=${Math.round(dropX)}, y=${Math.round(dropY)}`);
     }
+    
+    // Summary of dropped balls
+    const healingBalls = this.scene.droppedBalls.filter(ball => ball.isHealingBall).length;
+    const regularBalls = this.scene.droppedBalls.filter(ball => !ball.isHealingBall).length;
+    console.log(`Drop summary: ${healingBalls} healing balls, ${regularBalls} regular balls`);
   }
 
   // Add balls to inventory
@@ -853,6 +866,9 @@ export class Player {
       const droppedBall = this.scene.droppedBalls[i];
       
       if (droppedBall.isPlayerInRange(this)) {
+        // Check if this is a healing ball BEFORE collecting it
+        const isHealingBall = droppedBall.isHealingBall;
+        
         // Always collect the ball (even if inventory is full)
         droppedBall.collect();
         // Remove from array
@@ -861,7 +877,13 @@ export class Player {
         // Try to add ball to inventory (will be capped at maxBalls)
         this.addBalls(1);
         
-        console.log(`Collected dropped ball! Total balls: ${this.ballCount}/${this.maxBalls}`);
+        // Restore 3 health when collecting a pink healing ball
+        if (isHealingBall) {
+          this.heal(3);
+          console.log(`Collected healing ball! +3 health. Total balls: ${this.ballCount}/${this.maxBalls}`);
+        } else {
+          console.log(`Collected regular ball! Total balls: ${this.ballCount}/${this.maxBalls}`);
+        }
       }
     }
   }

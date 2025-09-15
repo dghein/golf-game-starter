@@ -2,13 +2,28 @@
  * DroppedBall class for managing collectible golf balls that drop when player takes damage
  */
 export class DroppedBall {
-  constructor(scene, x, y) {
+  constructor(scene, x, y, isHealingBall = false) {
     this.scene = scene;
     this.collected = false;
+    this.isHealingBall = isHealingBall;
     
-    // Create dropped ball as a smaller white circle
-    this.sprite = scene.add.circle(x, y, 8, 0xffffff);
-    this.sprite.setStrokeStyle(2, 0x000000); // Black outline
+    // Create dropped ball with different colors based on type
+    const color = isHealingBall ? 0xff00ff : 0xffffff; // Bright magenta for healing, white for regular
+    
+    // Use graphics object for better color control
+    this.sprite = scene.add.graphics();
+    this.sprite.fillStyle(color);
+    this.sprite.fillCircle(0, 0, 8);
+    this.sprite.lineStyle(2, 0x000000); // Black outline
+    this.sprite.strokeCircle(0, 0, 8);
+    this.sprite.setPosition(x, y);
+    
+    // Debug logging for color verification
+    if (isHealingBall) {
+      console.log(`Created MAGENTA healing ball at (${x}, ${y}) with color 0xff00ff`);
+    } else {
+      console.log(`Created WHITE regular ball at (${x}, ${y}) with color 0xffffff`);
+    }
     
     // Enable physics for bouncing and landing
     scene.physics.add.existing(this.sprite);
@@ -26,10 +41,6 @@ export class DroppedBall {
     
     // Set depth to appear above terrain but below main ball
     this.sprite.setDepth(4);
-    
-    // Add a subtle glow effect to make it more visible
-    // Note: Circles don't support setTint, so we'll use a different approach
-    this.sprite.setFillStyle(0xffffff); // White color
     
     // Add collection radius (larger than visual size for easier collection)
     this.collectionRadius = 40;
