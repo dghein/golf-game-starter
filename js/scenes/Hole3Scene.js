@@ -184,11 +184,8 @@ export default class Hole3Scene extends Phaser.Scene {
     // Shot counter
     this.shotCount = 0;
     
-    // Frank ball dropping system
-    this.ballDropTimer = 0;
-    this.ballDropInterval = 3000; // Drop interval (3 seconds)
+    // Frank ball dropping system (projectile-hit based)
     this.isPursuitMode = false;
-    this.lastFrankPosition = { x: 0, y: 0 };
 
     // Initialize dropped balls array and make DroppedBall available to player
     this.droppedBalls = [];
@@ -887,8 +884,6 @@ export default class Hole3Scene extends Phaser.Scene {
       console.log('Pursuit mode detected - Frank is aggro and hole is completed');
     }
     
-    // Update Frank ball dropping
-    this.updateFrankBallDropping();
     
     // Check projectile-enemy collisions
     this.checkProjectileEnemyCollisions();
@@ -1066,12 +1061,12 @@ export default class Hole3Scene extends Phaser.Scene {
         }
         
         // Calculate damage with critical hit chance
-        const isCritical = Math.random() < 0.1; // 10% chance for critical hit
+        const isCritical = Math.random() < 0.25; // 25% chance for critical hit
         let baseDamage;
         if (isCritical) {
-          baseDamage = 10 + Math.floor(Math.random() * 6); // Critical: 10-15 damage
+          baseDamage = 12 + Math.floor(Math.random() * 6); // Critical: 12-17 damage
         } else {
-          baseDamage = 3 + Math.floor(Math.random() * 4); // Normal: 3-6 damage
+          baseDamage = 5 + Math.floor(Math.random() * 4); // Normal: 5-8 damage
         }
         
         // Apply health-based damage scaling
@@ -1098,6 +1093,11 @@ export default class Hole3Scene extends Phaser.Scene {
         console.log('Calling enemy.takeDamage(2)...');
         this.enemy.takeDamage(damageAmount);
         
+        // Check if Frank should drop balls (1/3 chance)
+        if (this.isPursuitMode && Math.random() < 0.33) {
+          this.dropBallFromFrank(this.enemy.sprite.x, this.enemy.sprite.y);
+        }
+        
         // Destroy projectile
         projectile.destroy();
         this.player.projectiles.splice(i, 1);
@@ -1112,42 +1112,37 @@ export default class Hole3Scene extends Phaser.Scene {
     }
   }
 
-  // Update Frank ball dropping system
-  updateFrankBallDropping() {
-    if (!this.isPursuitMode || !this.enemy) {
-      return; // Only drop balls during pursuit mode
-    }
+
+  // Drop multiple balls from Frank's position with scattering
+  dropBallFromFrank(frankX, frankY) {
+    // Determine how many balls to drop (3-10)
+    const numBalls = 3 + Math.floor(Math.random() * 8);
     
-    this.ballDropTimer += this.game.loop.delta;
+    console.log(`Frank is dropping ${numBalls} balls at (${frankX}, ${frankY})`);
     
-    if (this.ballDropTimer >= this.ballDropInterval) {
-      // Check if Frank has moved enough to drop a ball
-      const currentFrankX = this.enemy.sprite.x;
-      const currentFrankY = this.enemy.sprite.y;
-      const distanceMoved = Phaser.Math.Distance.Between(
-        this.lastFrankPosition.x, this.lastFrankPosition.y,
-        currentFrankX, currentFrankY
-      );
+    for (let i = 0; i < numBalls; i++) {
+      // Calculate scatter position around Frank
+      const scatterDistance = 40 + Math.random() * 80; // 40-120 pixels from Frank
+      const scatterAngle = Math.random() * Math.PI * 2; // Random direction
       
-      // Only drop ball if Frank has moved at least 100 pixels
-      if (distanceMoved >= 100) {
-        this.dropBallFromFrank(currentFrankX, currentFrankY);
-        this.lastFrankPosition.x = currentFrankX;
-        this.lastFrankPosition.y = currentFrankY;
-        this.ballDropTimer = 0;
-        
-        // Randomize next drop interval (2-4 seconds)
-        this.ballDropInterval = 2000 + Math.random() * 2000;
+      const scatterX = frankX + Math.cos(scatterAngle) * scatterDistance;
+      const scatterY = frankY + Math.sin(scatterAngle) * scatterDistance;
+      
+      // Ensure ball lands on terrain
+      const terrainHeight = this.terrain.getHeightAtX(scatterX);
+      const finalY = terrainHeight - 8; // Place ball on terrain surface
+      
+      // Create collectible ball
+      const collectibleBall = new this.DroppedBall(this, scatterX, finalY);
+      this.droppedBalls.push(collectibleBall);
+      
+      // Add slight physics to make balls bounce and roll
+      if (collectibleBall.sprite.body) {
+        // Add random velocity for bouncing effect
+        const bounceX = (Math.random() - 0.5) * 200;
+        const bounceY = -80 - Math.random() * 80; // Upward bounce
+        collectibleBall.sprite.body.setVelocity(bounceX, bounceY);
       }
     }
-  }
-
-  // Drop a ball from Frank's position
-  dropBallFromFrank(frankX, frankY) {
-    // Create collectible ball at Frank's position
-    const collectibleBall = new this.DroppedBall(this, frankX, frankY);
-    this.droppedBalls.push(collectibleBall);
-    
-    console.log(`Frank dropped a ball at (${frankX}, ${frankY})`);
   }
 }
