@@ -1,3 +1,4 @@
+import TitleScene from './scenes/TitleScene.js';
 import Hole1Scene from './scenes/GameScene.js'; // Will be renamed to Hole1Scene.js
 import Hole2Scene from './scenes/Hole2Scene.js';
 import Hole3Scene from './scenes/Hole3Scene.js';
@@ -8,7 +9,7 @@ const config = {
   width: 1024,
   height: 768,
   backgroundColor: '#4CAF50',
-  scene: [Hole1Scene, Hole2Scene, Hole3Scene],
+  scene: [TitleScene, Hole1Scene, Hole2Scene, Hole3Scene],
   physics: {
     default: 'arcade',
     arcade: {
@@ -72,8 +73,8 @@ window.listHoles = function() {
 
 window.resetCourse = function() {
   courseManager.reset();
-  game.scene.start('Hole1Scene');
-  console.log('Course reset and returned to Hole 1');
+  game.scene.start('TitleScene');
+  console.log('Course reset and returned to Title Screen');
 };
 
 // Show available console commands
