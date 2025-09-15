@@ -29,15 +29,10 @@ export class DroppedBall {
     
     // Add a subtle glow effect to make it more visible
     // Note: Circles don't support setTint, so we'll use a different approach
-    this.sprite.setFillStyle(0xffffaa); // Slight yellow tint
+    this.sprite.setFillStyle(0xffffff); // White color
     
     // Add collection radius (larger than visual size for easier collection)
     this.collectionRadius = 40;
-    
-    // Create visual collection radius indicator (for debugging)
-    this.collectionCircle = scene.add.circle(x, y, this.collectionRadius, 0x00ff00, 0.1);
-    this.collectionCircle.setStrokeStyle(2, 0x00ff00, 0.5);
-    this.collectionCircle.setDepth(3);
     
     console.log(`Dropped ball created at x=${Math.round(x)}, y=${Math.round(y)}`);
   }
@@ -70,16 +65,6 @@ export class DroppedBall {
     const horizontalDistance = Math.abs(ballX - playerX);
     const inRange = horizontalDistance <= this.collectionRadius;
     
-    // Debug logging for collection - show every check with more detail
-    console.log(`COLLECTION CHECK:`);
-    console.log(`  Ball sprite: (${Math.round(ballX)}, ${Math.round(ballY)})`);
-    console.log(`  Player sprite: (${Math.round(playerX)}, ${Math.round(playerY)})`);
-    console.log(`  Horizontal distance: ${Math.round(horizontalDistance)}`);
-    console.log(`  Collection radius: ${this.collectionRadius}`);
-    console.log(`  In range: ${inRange}`);
-    console.log(`  Ball collected: ${this.collected}`);
-    console.log(`---`);
-    
     return inRange;
   }
   
@@ -89,9 +74,9 @@ export class DroppedBall {
     
     this.collected = true;
     
-    // Destroy collection circle
-    if (this.collectionCircle) {
-      this.collectionCircle.destroy();
+    // Play collect sound
+    if (this.scene.collectSound) {
+      this.scene.collectSound.play();
     }
     
     // Play collection effect
@@ -114,11 +99,6 @@ export class DroppedBall {
   // Update ball physics to follow terrain
   update(terrain) {
     if (this.collected || !terrain) return;
-    
-    // Update collection circle position to follow the ball
-    if (this.collectionCircle) {
-      this.collectionCircle.setPosition(this.sprite.x, this.sprite.y);
-    }
     
     // Apply terrain physics similar to main golf ball
     const ballBottom = this.sprite.y + 8; // 8 is the radius
@@ -152,9 +132,6 @@ export class DroppedBall {
   destroy() {
     if (this.sprite) {
       this.sprite.destroy();
-    }
-    if (this.collectionCircle) {
-      this.collectionCircle.destroy();
     }
   }
 }

@@ -844,18 +844,9 @@ export class Player {
   // Check if player can collect nearby dropped balls
   checkBallCollection() {
     if (!this.scene || !this.scene.droppedBalls) {
-      console.log('Ball collection check skipped: no scene or droppedBalls array');
       return;
     }
     
-    // Debug: log dropped balls count (only every 60 frames to reduce spam)
-    if (this.scene.droppedBalls.length > 0) {
-      if (!this.debugFrameCount) this.debugFrameCount = 0;
-      this.debugFrameCount++;
-      if (this.debugFrameCount % 60 === 0) {
-        console.log(`Checking collection for ${this.scene.droppedBalls.length} dropped balls`);
-      }
-    }
     
     // Check each dropped ball for collection
     for (let i = this.scene.droppedBalls.length - 1; i >= 0; i--) {

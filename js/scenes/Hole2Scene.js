@@ -39,6 +39,7 @@ export default class Hole2Scene extends Phaser.Scene {
     this.load.audio("swimming", "assets/sounds/swimming.mp3");
     this.load.audio("bounce", "assets/sounds/bounce.mp3");
     this.load.audio("background", "assets/sounds/background.mp3");
+    this.load.audio("collect", "assets/sounds/collect.mp3");
     
     // Debug: Log when sounds are loaded
     this.load.on('filecomplete-audio-clap', () => {
@@ -92,7 +93,7 @@ export default class Hole2Scene extends Phaser.Scene {
     this.player.saveHoleStartScore();
     
     // Give player some initial balls
-    this.player.addBalls(5);
+    this.player.addBalls(0);
     
     // Set player depth to appear above terrain but below water
     this.player.sprite.setDepth(5);
@@ -122,6 +123,7 @@ export default class Hole2Scene extends Phaser.Scene {
     // Create and set clap sound for hole completion
     this.clapSound = this.sound.add("clap", { volume: 0.8 });
     this.cheerSound = this.sound.add("cheer", { volume: 0.8 });
+    this.collectSound = this.sound.add("collect", { volume: 0.6 });
     console.log('Clap sound created:', this.clapSound);
     console.log('Cheer sound created:', this.cheerSound);
     this.golfBall.setClapSound(this.clapSound);

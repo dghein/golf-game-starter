@@ -49,6 +49,7 @@ export default class Hole3Scene extends Phaser.Scene {
     this.load.audio("background", "assets/sounds/background.mp3");
     this.load.audio("fireball", "assets/sounds/fireball.mp3");
     this.load.audio("bossfight", "assets/sounds/bossfight1.mp3");
+    this.load.audio("collect", "assets/sounds/collect.mp3");
   }
 
   create() {
@@ -93,7 +94,7 @@ export default class Hole3Scene extends Phaser.Scene {
     this.player.saveHoleStartScore();
     
     // Give player some initial balls
-    this.player.addBalls(5);
+    this.player.addBalls(0);
     
     // Set player depth to appear above terrain
     this.player.sprite.setDepth(5);
@@ -132,6 +133,7 @@ export default class Hole3Scene extends Phaser.Scene {
     // Create fireball sound for enemy attacks
     this.fireballSound = this.sound.add("fireball", { volume: 0.8 });
     this.bossfightSound = this.sound.add("bossfight", { volume: 0.6, loop: true });
+    this.collectSound = this.sound.add("collect", { volume: 0.6 });
     
     
     // Set up camera switching callback
@@ -678,45 +680,6 @@ export default class Hole3Scene extends Phaser.Scene {
       }
     }
 
-    // Debug: Test dropped ball creation with 'b' key
-    if (Phaser.Input.Keyboard.JustDown(keys.b)) {
-      console.log('Creating test dropped ball...');
-      if (this.player) {
-        const playerX = this.player.sprite.x;
-        const playerY = this.player.sprite.y;
-        
-        // Create a test dropped ball right next to the player
-        const testBall = new DroppedBall(this, playerX + 50, playerY);
-        this.droppedBalls.push(testBall);
-        
-        console.log(`Test dropped ball created at x=${Math.round(playerX + 50)}, y=${Math.round(playerY)}`);
-        console.log(`Total dropped balls: ${this.droppedBalls.length}`);
-        
-        // Test distance calculation immediately (horizontal only)
-        const horizontalDistance = Math.abs((playerX + 50) - playerX);
-        console.log(`Manual horizontal distance test: ${horizontalDistance} (should be 50)`);
-      }
-    }
-
-    // Debug: Test distance calculation with 'd' key
-    if (Phaser.Input.Keyboard.JustDown(keys.d)) {
-      console.log('Testing distance calculation...');
-      if (this.player && this.droppedBalls.length > 0) {
-        const playerX = this.player.sprite.x;
-        const playerY = this.player.sprite.y;
-        const ball = this.droppedBalls[0];
-        const ballX = ball.sprite.x;
-        const ballY = ball.sprite.y;
-        
-        const horizontalDistance = Math.abs(ballX - playerX);
-        console.log(`Manual horizontal distance test:`);
-        console.log(`  Ball: (${Math.round(ballX)}, ${Math.round(ballY)})`);
-        console.log(`  Player: (${Math.round(playerX)}, ${Math.round(playerY)})`);
-        console.log(`  Horizontal distance: ${horizontalDistance}`);
-        console.log(`  Collection radius: ${ball.collectionRadius}`);
-        console.log(`  Should be collectible: ${horizontalDistance <= ball.collectionRadius}`);
-      }
-    }
 
     // Update player movement and animations
     this.player.update(keys);
@@ -901,10 +864,6 @@ export default class Hole3Scene extends Phaser.Scene {
   updateDroppedBalls() {
     if (!this.droppedBalls) return;
     
-    // Debug logging
-    if (this.droppedBalls.length > 0) {
-      console.log(`Updating ${this.droppedBalls.length} dropped balls`);
-    }
     
     // Update each dropped ball
     for (let i = this.droppedBalls.length - 1; i >= 0; i--) {
