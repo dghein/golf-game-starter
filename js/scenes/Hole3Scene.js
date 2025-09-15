@@ -51,6 +51,7 @@ export default class Hole3Scene extends Phaser.Scene {
     this.load.audio("fireball", "assets/sounds/fireball.mp3");
     this.load.audio("bossfight", "assets/sounds/bossfight1.mp3");
     this.load.audio("collect", "assets/sounds/collect.mp3");
+    this.load.audio("hurt", "assets/sounds/hurt.mp3");
   }
 
   create() {
@@ -145,7 +146,7 @@ export default class Hole3Scene extends Phaser.Scene {
     this.fireballSound = this.sound.add("fireball", { volume: 0.8 });
     this.bossfightSound = this.sound.add("bossfight", { volume: 0.6, loop: true });
     this.collectSound = this.sound.add("collect", { volume: 0.6 });
-    
+    this.hurtSound = this.sound.add("hurt", { volume: 0.7, loop: false });    
     
     // Set up camera switching callback
     this.golfBall.setOnBallHitCallback(() => {
@@ -201,6 +202,9 @@ export default class Hole3Scene extends Phaser.Scene {
     
     // Create distance to pin UI
     this.createDistanceToPinUI();
+    
+    // Create enemy health bar UI
+    this.createEnemyHealthBar();
   }
 
   createClubUI() {
@@ -581,6 +585,93 @@ export default class Hole3Scene extends Phaser.Scene {
     this.distanceToPinText.setText(`  |  Pin: ${distanceYards} yds`);
   }
 
+  createEnemyHealthBar() {
+    const centerX = this.cameras.main.width / 2;
+    const barY = 50; // Moved down from 20 to 50 to avoid screen cutoff
+    const barWidth = 200;
+    const barHeight = 20;
+    
+    // Create enemy name text
+    this.enemyNameText = this.add.text(centerX, barY - 25, 'FRANK', {
+      fontSize: '18px',
+      fill: '#ffffff',
+      stroke: '#000000',
+      strokeThickness: 3,
+      fontFamily: 'Arial',
+      fontStyle: 'bold'
+    });
+    this.enemyNameText.setOrigin(0.5, 0.5);
+    this.enemyNameText.setScrollFactor(0); // Keep UI fixed on screen
+    this.enemyNameText.setDepth(1000);
+    
+    // Create health bar background (red)
+    this.enemyHealthBarBackground = this.add.rectangle(centerX, barY, barWidth, barHeight, 0xff0000, 0.8);
+    this.enemyHealthBarBackground.setOrigin(0.5, 0.5);
+    this.enemyHealthBarBackground.setScrollFactor(0); // Keep UI fixed on screen
+    this.enemyHealthBarBackground.setDepth(1000);
+    
+    // Create health bar foreground (green)
+    this.enemyHealthBar = this.add.rectangle(centerX, barY, barWidth, barHeight, 0x00ff00, 1.0);
+    this.enemyHealthBar.setOrigin(0.5, 0.5);
+    this.enemyHealthBar.setScrollFactor(0); // Keep UI fixed on screen
+    this.enemyHealthBar.setDepth(1001);
+    
+    // Create health text
+    this.enemyHealthText = this.add.text(centerX, barY, '', {
+      fontSize: '14px',
+      fill: '#ffffff',
+      stroke: '#000000',
+      strokeThickness: 2,
+      fontFamily: 'Arial',
+      fontStyle: 'bold'
+    });
+    this.enemyHealthText.setOrigin(0.5, 0.5);
+    this.enemyHealthText.setScrollFactor(0);
+    this.enemyHealthText.setDepth(1002);
+    
+    // Initially hide the health bar until enemy is created
+    this.enemyHealthBarBackground.setVisible(false);
+    this.enemyHealthBar.setVisible(false);
+    this.enemyHealthText.setVisible(false);
+    this.enemyNameText.setVisible(false);
+  }
+
+  updateEnemyHealthBar() {
+    if (!this.enemy || !this.enemy.isAlive() || !this.enemy.isInAggro()) {
+      // Hide health bar if enemy is dead, doesn't exist, or not in aggro state
+      this.enemyHealthBarBackground.setVisible(false);
+      this.enemyHealthBar.setVisible(false);
+      this.enemyHealthText.setVisible(false);
+      this.enemyNameText.setVisible(false);
+      return;
+    }
+    
+    // Show health bar only when enemy is in aggro state
+    this.enemyHealthBarBackground.setVisible(true);
+    this.enemyHealthBar.setVisible(true);
+    this.enemyHealthText.setVisible(true);
+    this.enemyNameText.setVisible(true);
+    
+    // Calculate health percentage
+    const healthPercent = this.enemy.health / this.enemy.maxHealth;
+    const barWidth = 200;
+    
+    // Update health bar width
+    this.enemyHealthBar.width = barWidth * healthPercent;
+    
+    // Update health text
+    this.enemyHealthText.setText(`${this.enemy.health}/${this.enemy.maxHealth}`);
+    
+    // Change color based on health
+    if (healthPercent > 0.6) {
+      this.enemyHealthBar.setFillStyle(0x00ff00); // Green
+    } else if (healthPercent > 0.3) {
+      this.enemyHealthBar.setFillStyle(0xffff00); // Yellow
+    } else {
+      this.enemyHealthBar.setFillStyle(0xff0000); // Red
+    }
+  }
+
   incrementShotCounter() {
     this.shotCount++;
     this.updateShotCounterUI();
@@ -611,8 +702,8 @@ export default class Hole3Scene extends Phaser.Scene {
     const ballIsStablyStopped = this.golfBall.isStablyStopped(this.game.loop.delta);
     const playerIsMoving = this.player.isMoving();
     
-    // Switch back to following player as soon as they start moving
-    if (this.cameraFollowingBall && playerIsMoving) {
+    // Only switch back to following player when ball has completely stopped
+    if (this.cameraFollowingBall && ballIsStablyStopped && !ballIsMoving) {
       this.switchCameraToPlayer();
     }
     
@@ -664,35 +755,6 @@ export default class Hole3Scene extends Phaser.Scene {
       this.resetShotCounter();
     }
     
-    // Debug: Test player knockback with 'k' key
-    if (Phaser.Input.Keyboard.JustDown(keys.k)) {
-      console.log('Testing player knockback...');
-      if (this.enemy && this.player) {
-        const distance = Phaser.Math.Distance.Between(
-          this.enemy.sprite.x, this.enemy.sprite.y,
-          this.player.sprite.x, this.player.sprite.y
-        );
-        console.log(`Player distance from enemy: ${Math.round(distance)} pixels`);
-        
-        if (distance <= 150) {
-          // Simply stun the player in place
-          this.player.enableKnockbackMode();
-          this.player.setDamagedSprite();
-          
-          // Stun for 2 seconds, then get up
-          this.time.delayedCall(2000, () => {
-            this.player.disableKnockbackMode();
-            this.player.restoreNormalSprite();
-          });
-          
-          console.log('Player stunned by test hit!');
-        } else {
-          console.log('Player too far for test stun');
-        }
-      } else {
-        console.log('Enemy or player not available for test');
-      }
-    }
 
 
     // Update player movement and animations
@@ -739,6 +801,9 @@ export default class Hole3Scene extends Phaser.Scene {
     // Update distance to pin
     this.updateDistanceToPinUI();
     
+    // Update enemy health bar
+    this.updateEnemyHealthBar();
+    
     // Handle camera switching between player and ball
     this.updateCameraFollow();
     
@@ -746,6 +811,9 @@ export default class Hole3Scene extends Phaser.Scene {
     if (this.enemy && this.enemy.isAlive()) {
       this.enemy.update();
     }
+    
+    // Check projectile-enemy collisions
+    this.checkProjectileEnemyCollisions();
     
     // Update dropped balls
     this.updateDroppedBalls();
@@ -782,6 +850,7 @@ export default class Hole3Scene extends Phaser.Scene {
     this.enemy.setTerrain(this.terrain);
     this.enemy.setFireballSound(this.fireballSound);
     this.enemy.setBossfightSound(this.bossfightSound);
+    this.enemy.setHurtSound(this.hurtSound);
     
     // Set up collision between enemy and golf ball
     this.physics.add.collider(this.golfBall.sprite, this.enemy.sprite, this.handleBallEnemyCollision, null, this);
@@ -847,17 +916,13 @@ export default class Hole3Scene extends Phaser.Scene {
   }
 
   // Restart game from current hole
-  restartGame() {
-    console.log('Restarting game from current hole (Hole 3)');
-    
+  restartGame() {    
     // Stop all sounds to prevent layering
     if (this.bossfightSound && this.bossfightSound.isPlaying) {
       this.bossfightSound.stop();
-      console.log('Bossfight music stopped on restart');
     }
     if (this.backgroundMusic && this.backgroundMusic.isPlaying) {
       this.backgroundMusic.stop();
-      console.log('Background music stopped on restart');
     }
     
     // Remove game over message if it exists
@@ -886,10 +951,51 @@ export default class Hole3Scene extends Phaser.Scene {
       if (droppedBall.collected) {
         // Remove collected balls from array
         this.droppedBalls.splice(i, 1);
-        console.log(`Removed collected ball from array. Remaining: ${this.droppedBalls.length}`);
       } else {
         // Update ball physics
         droppedBall.update(this.terrain);
+      }
+    }
+  }
+  
+  // Check collisions between projectiles and enemy
+  checkProjectileEnemyCollisions() {
+    if (!this.enemy || !this.enemy.isAlive() || !this.player.projectiles) {
+      return;
+    }
+    
+    console.log(`Checking ${this.player.projectiles.length} projectiles against enemy`);
+    
+    // Check each projectile against the enemy
+    for (let i = this.player.projectiles.length - 1; i >= 0; i--) {
+      const projectile = this.player.projectiles[i];
+      
+      // Calculate distance between projectile and enemy
+      const distance = Phaser.Math.Distance.Between(
+        projectile.sprite.x, projectile.sprite.y,
+        this.enemy.sprite.x, this.enemy.sprite.y
+      );
+      
+      console.log(`Projectile ${i}: distance=${distance.toFixed(1)}px`);
+      
+      // If projectile hits enemy (within 80 pixels - increased for easier hits)
+      if (distance < 80) {
+        console.log(`HIT DETECTED! Distance: ${distance.toFixed(1)}px`);
+        
+        // Damage enemy (this method already includes red flash)
+        console.log('Calling enemy.takeDamage(2)...');
+        this.enemy.takeDamage(2);
+        
+        // Destroy projectile
+        projectile.destroy();
+        this.player.projectiles.splice(i, 1);
+        
+        console.log(`Projectile hit enemy! Enemy health: ${this.enemy.health}/${this.enemy.maxHealth}`);
+      } else {
+        // Debug: log when projectiles are close but not hitting
+        if (distance < 100) {
+          console.log(`Projectile near enemy: distance=${distance.toFixed(1)}px, projectile=(${Math.round(projectile.sprite.x)}, ${Math.round(projectile.sprite.y)}), enemy=(${Math.round(this.enemy.sprite.x)}, ${Math.round(this.enemy.sprite.y)})`);
+        }
       }
     }
   }

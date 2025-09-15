@@ -54,14 +54,11 @@ class TitleScene extends Phaser.Scene {
     // Play title screen music
     this.titleMusic = this.sound.add("titlescreen", { loop: true, volume: 0.5 });
     this.titleMusic.play();
-    
-    console.log('Title screen loaded - Press Enter to start');
-  }
+      }
 
   update() {
     // Check for Enter key press
     if (Phaser.Input.Keyboard.JustDown(this.keys.enter)) {
-      console.log('Starting game from title screen');
       // Stop title music before transitioning
       if (this.titleMusic && this.titleMusic.isPlaying) {
         this.titleMusic.stop();

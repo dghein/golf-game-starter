@@ -45,6 +45,11 @@ export class Player {
     this.maxBalls = 20; // Maximum number of balls player can carry
     this.ballInventoryUI = null; // UI element for ball count display
     
+    // Projectile system properties
+    this.projectiles = []; // Array to hold shot projectiles
+    this.shootCooldown = 0; // Cooldown between shots
+    this.shootCooldownTime = 500; // 500ms between shots
+    
     // Create player sprite
     this.sprite = scene.physics.add.sprite(x, y, "golfer_walking_0");
     
@@ -270,6 +275,14 @@ export class Player {
       this.dash();
       return; // Skip normal movement during dash
     }
+    
+    // Handle shooting input
+    if (Phaser.Input.Keyboard.JustDown(keys.ctrl)) {
+      this.shootBall();
+    }
+    
+    // Update projectile system
+    this.updateProjectiles();
     
     // Skip normal movement if currently dashing
     if (this.isDashing) {
@@ -528,7 +541,7 @@ export class Player {
   updateWaterDetection() {
     if (!this.terrain || !this.swimmingSound || this.isDashing) {
       if (!this.isDashing) {
-      console.log('Water detection skipped: terrain or swimmingSound not available');
+        console.log('Water detection skipped: terrain or swimmingSound not available');
       }
       return;
     }
@@ -647,10 +660,11 @@ export class Player {
     this.hitCount++; // Increment hit count for game over transparency
     this.updateHealthBar();
     
+    console.log(`Player took ${damageAmount} damage. Health: ${this.currentHealth}/${this.maxHealth}. Hit count: ${this.hitCount}`);
+    
     // Drop 3 golf balls when taking damage
     this.dropGolfBalls(3);
     
-    console.log(`Player took ${damageAmount} damage. Health: ${this.currentHealth}/${this.maxHealth}. Hit count: ${this.hitCount}`);
     
     // Check if player is defeated
     if (this.currentHealth <= 0) {
@@ -801,7 +815,7 @@ export class Player {
       
       // Determine if this ball should be a healing ball (1/2 chance for testing)
       const randomValue = Math.random();
-      const isHealingBall = randomValue < 0.5;
+      const isHealingBall = randomValue < 0.5; // Temporarily 50% for testing
       
       console.log(`Ball ${i + 1}: random=${randomValue.toFixed(3)}, isHealing=${isHealingBall}`);
       
@@ -824,6 +838,7 @@ export class Player {
     const healingBalls = this.scene.droppedBalls.filter(ball => ball.isHealingBall).length;
     const regularBalls = this.scene.droppedBalls.filter(ball => !ball.isHealingBall).length;
     console.log(`Drop summary: ${healingBalls} healing balls, ${regularBalls} regular balls`);
+    
   }
 
   // Add balls to inventory
@@ -884,6 +899,57 @@ export class Player {
         } else {
           console.log(`Collected regular ball! Total balls: ${this.ballCount}/${this.maxBalls}`);
         }
+      }
+    }
+  }
+  
+  // Shoot a ball projectile
+  shootBall() {
+    // Check if player has balls and cooldown is ready
+    if (this.ballCount <= 0) {
+      console.log('No balls to shoot!');
+      return;
+    }
+    
+    if (this.shootCooldown > 0) {
+      return; // Still on cooldown
+    }
+    
+    // Use a ball from inventory
+    this.useBall();
+    
+    // Determine shooting direction based on player facing
+    const direction = this.sprite.flipX ? -1 : 1; // -1 for left, 1 for right
+    
+    // Create projectile ball
+    const projectileX = this.sprite.x + (direction * 30); // Offset from player
+    const projectileY = this.sprite.y;
+    
+    // Import ProjectileBall dynamically
+    import('./ProjectileBall.js').then(module => {
+      const ProjectileBall = module.ProjectileBall;
+      const projectile = new ProjectileBall(this.scene, projectileX, projectileY, direction);
+      this.projectiles.push(projectile);
+      
+      // Set cooldown
+      this.shootCooldown = this.shootCooldownTime;
+      
+      console.log(`Shot projectile! Direction: ${direction}, Position: (${Math.round(projectileX)}, ${Math.round(projectileY)}), Remaining balls: ${this.ballCount}/${this.maxBalls}`);
+    });
+  }
+  
+  // Update projectile system
+  updateProjectiles() {
+    // Update cooldown
+    if (this.shootCooldown > 0) {
+      this.shootCooldown -= 16; // Assuming 60fps
+    }
+    
+    // Update and clean up projectiles
+    for (let i = this.projectiles.length - 1; i >= 0; i--) {
+      const projectile = this.projectiles[i];
+      if (!projectile.update()) {
+        this.projectiles.splice(i, 1);
       }
     }
   }

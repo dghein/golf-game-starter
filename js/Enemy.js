@@ -27,7 +27,9 @@ export class Enemy {
   this.golfBall = null; // Will be set by scene
   this.player = null; // Will be set by scene
   this.terrain = null; // Will be set by scene
-  this.fireballSound = null; // Will be set by scene
+    this.fireballSound = null; // Will be set by scene
+    this.bossfightSound = null; // Will be set by scene
+    this.hurtSound = null; // Will be set by scene
     
     // Create enemy sprite
     this.sprite = scene.add.sprite(x, y, "enemy1_standing");
@@ -95,6 +97,10 @@ export class Enemy {
   
   setBossfightSound(bossfightSound) {
     this.bossfightSound = bossfightSound;
+  }
+  
+  setHurtSound(hurtSound) {
+    this.hurtSound = hurtSound;
   }
   
   // Check if player is in front of the enemy (for swing hit detection)
@@ -379,20 +385,6 @@ export class Enemy {
     this.player.sprite.body.setVelocityX(direction * knockbackPower);
     this.player.sprite.body.setVelocityY(0); // No vertical movement
     
-    // Play fireball sound when hitting player
-    if (this.scene && this.scene.fireballSound) {
-      console.log('Playing fireball sound for player hit (from scene)');
-      this.scene.fireballSound.play();
-      // Add screen shake effect
-      this.scene.cameras.main.shake(300, 0.01);
-    } else if (this.fireballSound) {
-      console.log('Playing fireball sound for player hit (from enemy)');
-      this.fireballSound.play();
-      // Add screen shake effect
-      this.scene.cameras.main.shake(300, 0.01);
-    } else {
-      console.log('Fireball sound not available for player hit');
-    }
     
     // Deal damage to player
     const damageAmount = 15; // 15% health damage per hit
@@ -503,6 +495,7 @@ export class Enemy {
         
         console.log(`Enemy hit ball - Player distance: ${Math.round(playerDistance)} pixels`);
         
+        
         // If player is close enough, stun them
         if (playerDistance <= 200) {
           // Simply stun the player in place
@@ -532,6 +525,34 @@ export class Enemy {
   // Take damage
   takeDamage(damage) {
     this.health = Math.max(0, this.health - damage);
+    
+    // Play hurt sound with better error handling
+    console.log(`Enemy taking damage: ${damage}. Hurt sound available: ${!!this.hurtSound}`);
+    if (this.hurtSound) {
+      console.log('Playing hurt sound...');
+      try {
+        // Stop any currently playing hurt sound to prevent overlapping
+        if (this.hurtSound.isPlaying) {
+          this.hurtSound.stop();
+        }
+        // Play the hurt sound
+        this.hurtSound.play();
+        console.log('Hurt sound played successfully');
+      } catch (error) {
+        console.error('Error playing hurt sound:', error);
+        // Try to play from scene as backup
+        if (this.scene && this.scene.hurtSound) {
+          try {
+            this.scene.hurtSound.play();
+            console.log('Hurt sound played from scene backup');
+          } catch (sceneError) {
+            console.error('Error playing hurt sound from scene:', sceneError);
+          }
+        }
+      }
+    } else {
+      console.log('No hurt sound available!');
+    }
     
     // Show damage effect
     this.scene.tweens.add({
@@ -603,5 +624,14 @@ export class Enemy {
       this.sprite.x, this.sprite.y,
       this.golfBall.x, this.golfBall.y
     );
+  }
+  
+  // Flash red when hit by projectile
+  flashRed() {
+    // Flash red for 200ms
+    this.sprite.setTint(0xff0000);
+    this.scene.time.delayedCall(200, () => {
+      this.sprite.clearTint();
+    });
   }
 }
