@@ -106,7 +106,7 @@ export default class Hole3Scene extends Phaser.Scene {
     this.player.saveHoleStartScore();
     
     // Give player some initial balls
-    this.player.addBalls(0);
+    this.player.addBalls(5);
     
     // Set player depth to appear above terrain
     this.player.sprite.setDepth(5);
@@ -702,8 +702,8 @@ export default class Hole3Scene extends Phaser.Scene {
     const ballIsStablyStopped = this.golfBall.isStablyStopped(this.game.loop.delta);
     const playerIsMoving = this.player.isMoving();
     
-    // Only switch back to following player when ball has completely stopped
-    if (this.cameraFollowingBall && ballIsStablyStopped && !ballIsMoving) {
+    // Only switch back to following player when player starts moving (not automatically when ball stops)
+    if (this.cameraFollowingBall && playerIsMoving) {
       this.switchCameraToPlayer();
     }
     

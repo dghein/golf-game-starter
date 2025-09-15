@@ -360,6 +360,17 @@ export class Enemy {
     
     // When animation completes, stun the player
     this.sprite.once('animationcomplete', () => {
+      // Play fireball sound and screen shake when attack hits
+      if (this.scene && this.scene.fireballSound) {
+        this.scene.fireballSound.play();
+        // Add screen shake effect
+        this.scene.cameras.main.shake(300, 0.01);
+      } else if (this.fireballSound) {
+        this.fireballSound.play();
+        // Add screen shake effect
+        this.scene.cameras.main.shake(300, 0.01);
+      }
+      
       this.stunPlayer();
       this.state = 'aggro'; // Return to aggro state
     });
