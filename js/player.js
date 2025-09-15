@@ -793,17 +793,17 @@ export class Player {
     for (let i = 0; i < count; i++) {
       // Calculate scatter positions around the player
       const angle = (i / count) * Math.PI * 2; // Distribute evenly in a circle
-      const distance = 50 + Math.random() * 30; // Random distance between 50-80 pixels
+      const distance = 80 + Math.random() * 60; // Random distance between 80-140 pixels (increased from 50-80)
       
       const dropX = playerX + Math.cos(angle) * distance;
-      const dropY = playerY + Math.sin(angle) * distance - 20; // Drop slightly above player
+      const dropY = playerY + Math.sin(angle) * distance - 30; // Drop slightly above player
       
       // Create dropped ball
       const droppedBall = new this.scene.DroppedBall(this.scene, dropX, dropY);
       
-      // Add some random velocity to make balls scatter
-      const scatterVelX = (Math.random() - 0.5) * 200;
-      const scatterVelY = -Math.random() * 100 - 50; // Always scatter upward
+      // Add some random velocity to make balls scatter more
+      const scatterVelX = (Math.random() - 0.5) * 400; // Increased from 200
+      const scatterVelY = -Math.random() * 150 - 80; // Always scatter upward, increased from 100-150
       droppedBall.sprite.body.setVelocity(scatterVelX, scatterVelY);
       
       // Add to scene's dropped balls array
