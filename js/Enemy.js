@@ -464,7 +464,7 @@ export class Enemy {
     const direction = this.player.sprite.x > this.sprite.x ? 1 : -1;
     
     // Apply horizontal knockback along terrain
-    const knockbackPower = 200; // Horizontal knockback power (reduced by 3/4 from 800)
+    const knockbackPower = 100; // Horizontal knockback power (reduced for less severe knockback)
     
     // Enable knockback mode to prevent normal movement from interfering
     this.player.enableKnockbackMode();

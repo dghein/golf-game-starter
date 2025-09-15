@@ -710,6 +710,67 @@ export default class Hole3Scene extends Phaser.Scene {
     // Track ball movement state for next frame
     this.ballWasMoving = ballIsMoving;
   }
+
+  // Show damage indicator above enemy
+  showDamageIndicator(damage, isCritical) {
+    if (!this.enemy) return;
+    
+    // Create damage text above enemy
+    const damageText = this.add.text(this.enemy.sprite.x, this.enemy.sprite.y - 100, damage.toString(), {
+      fontSize: '24px',
+      fill: isCritical ? '#ff0000' : '#ffff00',
+      stroke: '#000000',
+      strokeThickness: 2,
+      fontFamily: 'Arial',
+      fontStyle: 'bold'
+    });
+    
+    damageText.setOrigin(0.5, 0.5);
+    damageText.setDepth(1000);
+    
+    // Create critical hit text if applicable
+    if (isCritical) {
+      const criticalText = this.add.text(this.enemy.sprite.x, this.enemy.sprite.y - 130, 'CRITICAL!', {
+        fontSize: '16px',
+        fill: '#ff0000',
+        stroke: '#ffffff',
+        strokeThickness: 2,
+        fontFamily: 'Arial',
+        fontStyle: 'bold'
+      });
+      
+      criticalText.setOrigin(0.5, 0.5);
+      criticalText.setDepth(1000);
+      
+      // Animate critical text
+      this.tweens.add({
+        targets: criticalText,
+        scaleX: 1.2,
+        scaleY: 1.2,
+        duration: 200,
+        yoyo: true,
+        repeat: 2,
+        ease: 'Power2'
+      });
+      
+      // Remove critical text after delay
+      this.time.delayedCall(1500, () => {
+        criticalText.destroy();
+      });
+    }
+    
+    // Animate damage text (float up and fade out)
+    this.tweens.add({
+      targets: damageText,
+      y: damageText.y - 50,
+      alpha: 0,
+      duration: 1000,
+      ease: 'Power2',
+      onComplete: () => {
+        damageText.destroy();
+      }
+    });
+  }
   
   update() {
     const keys = this.keys;
@@ -987,9 +1048,38 @@ export default class Hole3Scene extends Phaser.Scene {
           this.hurtSound.play();
         }
         
+        // Calculate damage with critical hit chance
+        const isCritical = Math.random() < 0.1; // 10% chance for critical hit
+        let baseDamage;
+        if (isCritical) {
+          baseDamage = 10 + Math.floor(Math.random() * 6); // Critical: 10-15 damage
+        } else {
+          baseDamage = 3 + Math.floor(Math.random() * 4); // Normal: 3-6 damage
+        }
+        
+        // Apply health-based damage scaling
+        const healthPercent = this.enemy.health / this.enemy.maxHealth;
+        let damageMultiplier;
+        if (healthPercent > 0.8) {
+          damageMultiplier = 0.3; // 30% damage at high health
+        } else if (healthPercent > 0.6) {
+          damageMultiplier = 0.5; // 50% damage
+        } else if (healthPercent > 0.4) {
+          damageMultiplier = 0.8; // 80% damage
+        } else if (healthPercent > 0.2) {
+          damageMultiplier = 1.2; // 120% damage
+        } else {
+          damageMultiplier = 1.5; // 150% damage
+        }
+        
+        const damageAmount = Math.max(1, Math.floor(baseDamage * damageMultiplier));
+        
+        // Show damage indicator
+        this.showDamageIndicator(damageAmount, isCritical);
+        
         // Damage enemy (this method already includes red flash)
         console.log('Calling enemy.takeDamage(2)...');
-        this.enemy.takeDamage(2);
+        this.enemy.takeDamage(damageAmount);
         
         // Destroy projectile
         projectile.destroy();

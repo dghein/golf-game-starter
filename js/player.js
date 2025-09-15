@@ -662,6 +662,9 @@ export class Player {
     
     console.log(`Player took ${damageAmount} damage. Health: ${this.currentHealth}/${this.maxHealth}. Hit count: ${this.hitCount}`);
     
+    // Show damage indicator
+    this.showPlayerDamageIndicator(damageAmount);
+    
     // Drop 3 golf balls when taking damage
     this.dropGolfBalls(3);
     
@@ -670,6 +673,36 @@ export class Player {
     if (this.currentHealth <= 0) {
       this.handleDefeat();
     }
+  }
+
+  // Show damage indicator above player
+  showPlayerDamageIndicator(damage) {
+    if (!this.sprite || !this.scene) return;
+    
+    // Create damage text above player
+    const damageText = this.scene.add.text(this.sprite.x, this.sprite.y - 80, damage.toString(), {
+      fontSize: '24px',
+      fill: '#ff0000',
+      stroke: '#ffffff',
+      strokeThickness: 2,
+      fontFamily: 'Arial',
+      fontStyle: 'bold'
+    });
+    
+    damageText.setOrigin(0.5, 0.5);
+    damageText.setDepth(1000);
+    
+    // Animate damage text (float up and fade out)
+    this.scene.tweens.add({
+      targets: damageText,
+      y: damageText.y - 50,
+      alpha: 0,
+      duration: 1000,
+      ease: 'Power2',
+      onComplete: () => {
+        damageText.destroy();
+      }
+    });
   }
 
   // Handle player defeat
