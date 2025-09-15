@@ -16,6 +16,7 @@ export default class Hole3Scene extends Phaser.Scene {
 
   preload() {
     this.load.image("sky", "assets/course/sky.png");
+    this.load.image("trees", "assets/course/trees.png");
     this.load.image("flag", "assets/course/flag.png");
     this.load.image("enemy1_standing", "assets/enemies/enemy1_standing.png");
     this.load.image("enemy1_walking1", "assets/enemies/enemy1_walking1.png");
@@ -59,6 +60,16 @@ export default class Hole3Scene extends Phaser.Scene {
     
     // Create repeating sky background across the course
     this.add.tileSprite(0, 0, 6000, 600, "sky").setOrigin(0, 0);
+    
+    // Create trees background (horizontal repeat only)
+    // Position trees at the bottom of the visible area (y=600-height of trees image)
+    const treeHeight = 600; // Assuming trees.png is 600px tall
+    const treeWidth = 600;  // Assuming trees.png is 600px wide
+    const numTrees = Math.ceil(6000 / treeWidth); // Calculate how many trees needed
+    
+    for (let i = 0; i < numTrees; i++) {
+      this.add.image(i * treeWidth, 600 - treeHeight/2 + 150, "trees").setOrigin(0, 0.5).setDepth(1);
+    }
 
     // Create custom terrain system for Hole 3
     this.terrain = new Hole3Terrain(this);
@@ -403,10 +414,12 @@ export default class Hole3Scene extends Phaser.Scene {
     this.powerMeterBg = this.add.rectangle(0, 0, meterWidth, meterHeight, 0x333333);
     this.powerMeterBg.setOrigin(0.5, 1); // Center horizontally, bottom aligned
     this.powerMeterBg.setStrokeStyle(2, 0xffffff);
+    this.powerMeterBg.setDepth(1000); // Above trees and terrain
     
     // Power meter fill
     this.powerMeterFill = this.add.rectangle(0, 0, 0, meterHeight - 4, 0x00ff00);
     this.powerMeterFill.setOrigin(0, 0.5); // Left aligned, center vertically
+    this.powerMeterFill.setDepth(1001); // Above background
     
     // Power meter label (smaller text)
     this.powerMeterLabel = this.add.text(0, 0, '', {
@@ -417,6 +430,7 @@ export default class Hole3Scene extends Phaser.Scene {
       fontFamily: 'Arial'
     });
     this.powerMeterLabel.setOrigin(0.5, 1); // Center horizontally, bottom aligned
+    this.powerMeterLabel.setDepth(1002); // Above fill
     
     // Initially hide power meter
     this.powerMeterBg.setVisible(false);

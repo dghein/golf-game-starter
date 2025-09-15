@@ -405,10 +405,12 @@ export default class Hole2Scene extends Phaser.Scene {
     this.powerMeterBg = this.add.rectangle(0, 0, meterWidth, meterHeight, 0x333333);
     this.powerMeterBg.setOrigin(0.5, 1); // Center horizontally, bottom aligned
     this.powerMeterBg.setStrokeStyle(2, 0xffffff);
+    this.powerMeterBg.setDepth(1000); // Above trees and terrain
     
     // Power meter fill
     this.powerMeterFill = this.add.rectangle(0, 0, 0, meterHeight - 4, 0x00ff00);
     this.powerMeterFill.setOrigin(0, 0.5); // Left aligned, center vertically
+    this.powerMeterFill.setDepth(1001); // Above background
     
     // Power meter label (smaller text)
     this.powerMeterLabel = this.add.text(0, 0, '', {
@@ -419,6 +421,7 @@ export default class Hole2Scene extends Phaser.Scene {
       fontFamily: 'Arial'
     });
     this.powerMeterLabel.setOrigin(0.5, 1); // Center horizontally, bottom aligned
+    this.powerMeterLabel.setDepth(1002); // Above fill
     
     // Initially hide power meter
     this.powerMeterBg.setVisible(false);
