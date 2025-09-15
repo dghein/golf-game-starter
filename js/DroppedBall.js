@@ -10,13 +10,12 @@ export class DroppedBall {
     // Create dropped ball with different colors based on type
     const color = isHealingBall ? 0xff00ff : 0xffffff; // Bright magenta for healing, white for regular
     
-    // Use graphics object for better color control
-    this.sprite = scene.add.graphics();
-    this.sprite.fillStyle(color);
-    this.sprite.fillCircle(0, 0, 8);
-    this.sprite.lineStyle(2, 0x000000); // Black outline
-    this.sprite.strokeCircle(0, 0, 8);
-    this.sprite.setPosition(x, y);
+    // Use circle sprite for better visibility and consistency
+    this.sprite = scene.add.circle(x, y, 8, color);
+    this.sprite.setStrokeStyle(2, 0x000000); // Black outline
+    
+    // Set depth to ensure visibility above terrain
+    this.sprite.setDepth(5);
     
     // Debug logging for color verification
     if (isHealingBall) {

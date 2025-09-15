@@ -183,6 +183,12 @@ export default class Hole3Scene extends Phaser.Scene {
     
     // Shot counter
     this.shotCount = 0;
+    
+    // Frank ball dropping system
+    this.ballDropTimer = 0;
+    this.ballDropInterval = 3000; // Drop interval (3 seconds)
+    this.isPursuitMode = false;
+    this.lastFrankPosition = { x: 0, y: 0 };
 
     // Initialize dropped balls array and make DroppedBall available to player
     this.droppedBalls = [];
@@ -873,6 +879,17 @@ export default class Hole3Scene extends Phaser.Scene {
       this.enemy.update();
     }
     
+    // Check if we're in pursuit mode (Frank is aggro and hole is completed)
+    this.isPursuitMode = this.enemy.isInAggro() && this.golfBall.holeCompleted;
+    
+    // Debug pursuit mode
+    if (this.isPursuitMode && this.ballDropTimer === 0) {
+      console.log('Pursuit mode detected - Frank is aggro and hole is completed');
+    }
+    
+    // Update Frank ball dropping
+    this.updateFrankBallDropping();
+    
     // Check projectile-enemy collisions
     this.checkProjectileEnemyCollisions();
     
@@ -1093,5 +1110,44 @@ export default class Hole3Scene extends Phaser.Scene {
         }
       }
     }
+  }
+
+  // Update Frank ball dropping system
+  updateFrankBallDropping() {
+    if (!this.isPursuitMode || !this.enemy) {
+      return; // Only drop balls during pursuit mode
+    }
+    
+    this.ballDropTimer += this.game.loop.delta;
+    
+    if (this.ballDropTimer >= this.ballDropInterval) {
+      // Check if Frank has moved enough to drop a ball
+      const currentFrankX = this.enemy.sprite.x;
+      const currentFrankY = this.enemy.sprite.y;
+      const distanceMoved = Phaser.Math.Distance.Between(
+        this.lastFrankPosition.x, this.lastFrankPosition.y,
+        currentFrankX, currentFrankY
+      );
+      
+      // Only drop ball if Frank has moved at least 100 pixels
+      if (distanceMoved >= 100) {
+        this.dropBallFromFrank(currentFrankX, currentFrankY);
+        this.lastFrankPosition.x = currentFrankX;
+        this.lastFrankPosition.y = currentFrankY;
+        this.ballDropTimer = 0;
+        
+        // Randomize next drop interval (2-4 seconds)
+        this.ballDropInterval = 2000 + Math.random() * 2000;
+      }
+    }
+  }
+
+  // Drop a ball from Frank's position
+  dropBallFromFrank(frankX, frankY) {
+    // Create collectible ball at Frank's position
+    const collectibleBall = new this.DroppedBall(this, frankX, frankY);
+    this.droppedBalls.push(collectibleBall);
+    
+    console.log(`Frank dropped a ball at (${frankX}, ${frankY})`);
   }
 }
