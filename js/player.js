@@ -40,6 +40,11 @@ export class Player {
     this.hitCount = 0; // Track number of hits for game over transparency
     this.holeStartScore = 0; // Track score at start of hole for restart
     
+    // Ball inventory properties (enabled on all holes)
+    this.ballCount = 0; // Number of golf balls in inventory
+    this.maxBalls = 10; // Maximum number of balls player can carry
+    this.ballInventoryUI = null; // UI element for ball count display
+    
     // Create player sprite
     this.sprite = scene.physics.add.sprite(x, y, "golfer_walking_0");
     
@@ -64,6 +69,9 @@ export class Player {
     
     // Create health bar UI
     this.createHealthBar();
+    
+    // Create ball inventory UI
+    this.createBallInventoryUI();
   }
 
   // Create speed lines visual effect
@@ -113,6 +121,27 @@ export class Player {
     
     // Update health bar to show current health
     this.updateHealthBar();
+  }
+
+  // Create ball inventory UI
+  createBallInventoryUI() {
+    const textX = 20; // Position from left edge
+    const textY = this.scene.cameras.main.height - 60; // Position above health bar
+    
+    // Add ball count text label
+    this.ballCountText = this.scene.add.text(textX, textY, 'Balls: 0', {
+      fontSize: '16px',
+      fill: '#ffffff',
+      stroke: '#000000',
+      strokeThickness: 2,
+      fontFamily: 'Arial'
+    });
+    this.ballCountText.setOrigin(0, 0);
+    this.ballCountText.setScrollFactor(0);
+    this.ballCountText.setDepth(1002);
+    
+    // Update ball inventory to show current count
+    this.updateBallInventoryUI();
   }
 
   // Get player position
@@ -251,6 +280,9 @@ export class Player {
     
     // Check for water detection and manage swimming sound
     this.updateWaterDetection();
+    
+    // Check for ball collection
+    this.checkBallCollection();
     
     // Don't allow movement or other actions while swinging
     if (this.isSwingInProgress) {
@@ -600,11 +632,22 @@ export class Player {
     }
   }
 
+  // Update ball inventory visual display
+  updateBallInventoryUI() {
+    if (!this.ballCountText) return;
+    
+    // Update ball count text
+    this.ballCountText.setText(`Balls: ${this.ballCount}`);
+  }
+
   // Take damage from enemy hits
   takeDamage(damageAmount) {
     this.currentHealth = Math.max(0, this.currentHealth - damageAmount);
     this.hitCount++; // Increment hit count for game over transparency
     this.updateHealthBar();
+    
+    // Drop 3 golf balls when taking damage
+    this.dropGolfBalls(3);
     
     console.log(`Player took ${damageAmount} damage. Health: ${this.currentHealth}/${this.maxHealth}. Hit count: ${this.hitCount}`);
     
@@ -735,5 +778,100 @@ export class Player {
     }
     
     console.log('Player state reset for restart');
+  }
+
+  // Drop golf balls when taking damage
+  dropGolfBalls(count) {
+    if (!this.scene || !this.scene.droppedBalls) {
+      console.log('Cannot drop balls - scene or droppedBalls array not available');
+      return;
+    }
+    
+    const playerX = this.sprite.x;
+    const playerY = this.sprite.y;
+    
+    for (let i = 0; i < count; i++) {
+      // Calculate scatter positions around the player
+      const angle = (i / count) * Math.PI * 2; // Distribute evenly in a circle
+      const distance = 50 + Math.random() * 30; // Random distance between 50-80 pixels
+      
+      const dropX = playerX + Math.cos(angle) * distance;
+      const dropY = playerY + Math.sin(angle) * distance - 20; // Drop slightly above player
+      
+      // Create dropped ball
+      const droppedBall = new this.scene.DroppedBall(this.scene, dropX, dropY);
+      
+      // Add some random velocity to make balls scatter
+      const scatterVelX = (Math.random() - 0.5) * 200;
+      const scatterVelY = -Math.random() * 100 - 50; // Always scatter upward
+      droppedBall.sprite.body.setVelocity(scatterVelX, scatterVelY);
+      
+      // Add to scene's dropped balls array
+      this.scene.droppedBalls.push(droppedBall);
+      
+      console.log(`Dropped ball ${i + 1} at x=${Math.round(dropX)}, y=${Math.round(dropY)}`);
+    }
+  }
+
+  // Add balls to inventory
+  addBalls(count) {
+    const oldCount = this.ballCount;
+    this.ballCount = Math.min(this.maxBalls, this.ballCount + count);
+    const addedCount = this.ballCount - oldCount;
+    
+    this.updateBallInventoryUI();
+    
+    if (addedCount > 0) {
+      console.log(`Added ${addedCount} balls to inventory. Total: ${this.ballCount}/${this.maxBalls}`);
+    }
+    
+    return addedCount;
+  }
+
+  // Use a ball from inventory (for shooting)
+  useBall() {
+    if (this.ballCount > 0) {
+      this.ballCount--;
+      this.updateBallInventoryUI();
+      console.log(`Used 1 ball. Remaining: ${this.ballCount}/${this.maxBalls}`);
+      return true;
+    } else {
+      console.log('No balls available!');
+      return false;
+    }
+  }
+
+  // Check if player can collect nearby dropped balls
+  checkBallCollection() {
+    if (!this.scene || !this.scene.droppedBalls) {
+      console.log('Ball collection check skipped: no scene or droppedBalls array');
+      return;
+    }
+    
+    // Debug: log dropped balls count (only every 60 frames to reduce spam)
+    if (this.scene.droppedBalls.length > 0) {
+      if (!this.debugFrameCount) this.debugFrameCount = 0;
+      this.debugFrameCount++;
+      if (this.debugFrameCount % 60 === 0) {
+        console.log(`Checking collection for ${this.scene.droppedBalls.length} dropped balls`);
+      }
+    }
+    
+    // Check each dropped ball for collection
+    for (let i = this.scene.droppedBalls.length - 1; i >= 0; i--) {
+      const droppedBall = this.scene.droppedBalls[i];
+      
+      if (droppedBall.isPlayerInRange(this)) {
+        // Always collect the ball (even if inventory is full)
+        droppedBall.collect();
+        // Remove from array
+        this.scene.droppedBalls.splice(i, 1);
+        
+        // Try to add ball to inventory (will be capped at maxBalls)
+        this.addBalls(1);
+        
+        console.log(`Collected dropped ball! Total balls: ${this.ballCount}/${this.maxBalls}`);
+      }
+    }
   }
 }

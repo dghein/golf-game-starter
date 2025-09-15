@@ -6,6 +6,7 @@ import { ClubManager, CLUB_TYPES } from "../clubs.js";
 import { WindSystem } from "../wind.js";
 import { Terrain } from "../terrain.js";
 import { courseManager } from "../CourseManager.js";
+import { DroppedBall } from "../DroppedBall.js";
 
 export default class Hole1Scene extends Phaser.Scene {
   constructor() {
@@ -88,6 +89,9 @@ export default class Hole1Scene extends Phaser.Scene {
     // Save score at start of hole for restart functionality
     this.player.saveHoleStartScore();
     
+    // Give player some initial balls
+    this.player.addBalls(5);
+    
     // Set player depth to appear above terrain but below water
     this.player.sprite.setDepth(5);
 
@@ -158,6 +162,10 @@ export default class Hole1Scene extends Phaser.Scene {
     
     // Shot counter
     this.shotCount = 0;
+
+    // Initialize dropped balls array and make DroppedBall available to player
+    this.droppedBalls = [];
+    this.DroppedBall = DroppedBall; // Make DroppedBall class available to player
 
     // Create UI elements for club display
     this.createClubUI();
@@ -675,6 +683,9 @@ export default class Hole1Scene extends Phaser.Scene {
     
     // Handle camera switching between player and ball
     this.updateCameraFollow();
+    
+    // Update dropped balls
+    this.updateDroppedBalls();
   }
   
   switchCameraToBall() {
@@ -749,4 +760,21 @@ export default class Hole1Scene extends Phaser.Scene {
     this.scene.restart();
   }
 
+  // Update all dropped balls
+  updateDroppedBalls() {
+    if (!this.droppedBalls) return;
+    
+    // Update each dropped ball
+    for (let i = this.droppedBalls.length - 1; i >= 0; i--) {
+      const droppedBall = this.droppedBalls[i];
+      
+      if (droppedBall.collected) {
+        // Remove collected balls from array
+        this.droppedBalls.splice(i, 1);
+      } else {
+        // Update ball physics
+        droppedBall.update(this.terrain);
+      }
+    }
+  }
 }

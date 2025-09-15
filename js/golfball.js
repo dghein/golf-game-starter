@@ -276,6 +276,12 @@ export class GolfBall {
 
   // Check if player can hit the ball and handle the hit
   checkHit(player, clubManager = null, keys = null) {
+    // Check if player has balls available
+    if (player.ballCount <= 0) {
+      console.log('No balls available! Cannot hit.');
+      return;
+    }
+    
     // Calculate distance between player and ball
     const distance = Phaser.Math.Distance.Between(
       player.x, player.y,
@@ -295,6 +301,12 @@ export class GolfBall {
       if (distance < 80) {
         // Only hit the ball if it hasn't been hit recently
         if (!this.hitRecently) {
+          // Use a ball from inventory
+          if (!player.useBall()) {
+            console.log('No balls available to hit!');
+            return;
+          }
+          
           const powerMultiplier = player.getCurrentPower();
           
           // Check for backspin (Ctrl + Wedge only)
