@@ -6,7 +6,7 @@ export class Enemy {
     this.scene = scene;
     
     // Enemy states
-    this.state = 'idle'; // 'idle', 'aggro', 'swinging'
+    this.state = 'idle'; // 'idle', 'aggro', 'swinging', 'warning'
     this.isAggro = false;
     this.aggroRange = 500; // Increased from 200 to 500 pixels
     this.attackRange = 80; // Distance in pixels for swing attack
@@ -143,9 +143,12 @@ export class Enemy {
       case 'aggro':
         this.handleAggroState();
         break;
-      case 'swinging':
-        this.handleSwingingState();
-        break;
+        case 'warning':
+          this.handleWarningState();
+          break;
+        case 'swinging':
+          this.handleSwingingState();
+          break;
     }
   }
 
@@ -291,6 +294,63 @@ export class Enemy {
     this.sprite.play('enemy_idle', true);
   }
 
+  // Handle warning state (before attacking player)
+  handleWarningState() {
+    // Stop movement during warning
+    this.sprite.body.setVelocityX(0);
+    
+    // Use the first frame of attack animation to show Frank is preparing to strike
+    this.sprite.setTexture('enemy1_swing1');
+    
+    // Face the player during warning
+    if (this.player) {
+      const direction = this.player.sprite.x > this.sprite.x ? 1 : -1;
+      this.sprite.flipX = direction < 0;
+    }
+  }
+
+  // Show attack warning indicator
+  showAttackWarning() {
+    // Create warning text above enemy
+    const warningText = this.scene.add.text(this.sprite.x, this.sprite.y - 120, '!', {
+      fontSize: '32px',
+      fill: '#ff0000',
+      stroke: '#ffffff',
+      strokeThickness: 3,
+      fontFamily: 'Arial',
+      fontStyle: 'bold'
+    });
+    
+    warningText.setOrigin(0.5, 0.5);
+    warningText.setDepth(1000);
+    
+    // Animate warning text (pulse and shake)
+    this.scene.tweens.add({
+      targets: warningText,
+      scaleX: 1.3,
+      scaleY: 1.3,
+      duration: 200,
+      yoyo: true,
+      repeat: 3,
+      ease: 'Power2'
+    });
+    
+    // Shake effect
+    this.scene.tweens.add({
+      targets: warningText,
+      x: this.sprite.x + 5,
+      duration: 100,
+      yoyo: true,
+      repeat: 5,
+      ease: 'Power2'
+    });
+    
+    // Remove warning text after delay
+    this.scene.time.delayedCall(1000, () => {
+      warningText.destroy();
+    });
+  }
+
   // Handle aggro state
   handleAggroState() {
     // After hole completion, pursue player instead of ball
@@ -353,26 +413,46 @@ export class Enemy {
     }
     
     this.lastAttackTime = currentTime;
-    this.state = 'swinging';
+    this.state = 'warning';
     
-    // Play swing animation
-    this.sprite.play('enemy_swing', true);
+    // Stop movement during warning
+    this.sprite.body.setVelocityX(0);
     
-    // When animation completes, stun the player
-    this.sprite.once('animationcomplete', () => {
-      // Play fireball sound and screen shake when attack hits
-      if (this.scene && this.scene.fireballSound) {
-        this.scene.fireballSound.play();
-        // Add screen shake effect
-        this.scene.cameras.main.shake(300, 0.01);
-      } else if (this.fireballSound) {
-        this.fireballSound.play();
-        // Add screen shake effect
-        this.scene.cameras.main.shake(300, 0.01);
-      }
+    // Use the first frame of attack animation to show Frank is preparing to strike
+    this.sprite.setTexture('enemy1_swing1');
+    
+    // Face the player during warning
+    if (this.player) {
+      const direction = this.player.sprite.x > this.sprite.x ? 1 : -1;
+      this.sprite.flipX = direction < 0;
+    }
+    
+    // Show warning indicator
+    this.showAttackWarning();
+    
+    // Brief warning period (0.25 seconds) before attacking
+    this.scene.time.delayedCall(250, () => {
+      this.state = 'swinging';
       
-      this.stunPlayer();
-      this.state = 'aggro'; // Return to aggro state
+      // Play swing animation
+      this.sprite.play('enemy_swing', true);
+      
+      // When animation completes, stun the player
+      this.sprite.once('animationcomplete', () => {
+        // Play fireball sound and screen shake when attack hits
+        if (this.scene && this.scene.fireballSound) {
+          this.scene.fireballSound.play();
+          // Add screen shake effect
+          this.scene.cameras.main.shake(300, 0.01);
+        } else if (this.fireballSound) {
+          this.fireballSound.play();
+          // Add screen shake effect
+          this.scene.cameras.main.shake(300, 0.01);
+        }
+        
+        this.stunPlayer();
+        this.state = 'aggro'; // Return to aggro state
+      });
     });
   }
   

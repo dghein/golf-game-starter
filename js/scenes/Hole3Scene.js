@@ -982,6 +982,11 @@ export default class Hole3Scene extends Phaser.Scene {
       if (distance < 80) {
         console.log(`HIT DETECTED! Distance: ${distance.toFixed(1)}px`);
         
+        // Play hurt sound
+        if (this.hurtSound) {
+          this.hurtSound.play();
+        }
+        
         // Damage enemy (this method already includes red flash)
         console.log('Calling enemy.takeDamage(2)...');
         this.enemy.takeDamage(2);
