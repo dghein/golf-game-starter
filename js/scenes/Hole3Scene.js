@@ -88,6 +88,9 @@ export default class Hole3Scene extends Phaser.Scene {
     this.player.setTerrain(this.terrain);
     this.player.setSwimmingSound(this.swimmingSound);
     
+    // Save score at start of hole for restart functionality
+    this.player.saveHoleStartScore();
+    
     // Set player depth to appear above terrain
     this.player.sprite.setDepth(5);
 
@@ -253,6 +256,9 @@ export default class Hole3Scene extends Phaser.Scene {
     const centerX = this.cameras.main.width / 2;
     const centerY = this.cameras.main.height / 2;
     
+    // Declare celebrationText at function level for cleanup access
+    let celebrationText = null;
+    
     // Special styling for hole-in-one
     const textStyle = isHoleInOne ? {
       fontSize: '48px',
@@ -293,7 +299,7 @@ export default class Hole3Scene extends Phaser.Scene {
       });
       
       // Add extra celebration text
-      const celebrationText = this.add.text(centerX, centerY + 20, 'INCREDIBLE SHOT!', {
+      celebrationText = this.add.text(centerX, centerY + 20, 'INCREDIBLE SHOT!', {
         fontSize: '28px',
         fill: '#FFD700',
         stroke: '#FF0000',
@@ -812,19 +818,31 @@ export default class Hole3Scene extends Phaser.Scene {
     }
   }
 
-  // Restart game from Hole 1
+  // Restart game from current hole
   restartGame() {
-    console.log('Restarting game from Hole 1');
+    console.log('Restarting game from current hole (Hole 3)');
+    
+    // Stop all sounds to prevent layering
+    if (this.bossfightSound && this.bossfightSound.isPlaying) {
+      this.bossfightSound.stop();
+      console.log('Bossfight music stopped on restart');
+    }
+    if (this.backgroundMusic && this.backgroundMusic.isPlaying) {
+      this.backgroundMusic.stop();
+      console.log('Background music stopped on restart');
+    }
     
     // Remove game over message if it exists
     if (this.player && this.player.removeGameOverMessage) {
       this.player.removeGameOverMessage();
     }
     
-    // Reset course manager to Hole 1
-    courseManager.resetToHole1();
+    // Reset player state
+    if (this.player && this.player.resetPlayerState) {
+      this.player.resetPlayerState();
+    }
     
-    // Start Hole 1 scene
-    this.scene.start('Hole1Scene');
+    // Restart current scene (Hole 3)
+    this.scene.restart();
   }
 }

@@ -1,6 +1,8 @@
 /**
  * Player class for managing golfer sprite, animations, and movement
  */
+import { courseManager } from './CourseManager.js';
+
 export class Player {
   constructor(scene, x = 100, y = 630) {
     this.scene = scene;
@@ -35,6 +37,8 @@ export class Player {
     this.currentHealth = 100; // Current health
     this.healthBar = null; // Health bar UI element
     this.healthBarBackground = null; // Health bar background
+    this.hitCount = 0; // Track number of hits for game over transparency
+    this.holeStartScore = 0; // Track score at start of hole for restart
     
     // Create player sprite
     this.sprite = scene.physics.add.sprite(x, y, "golfer_walking_0");
@@ -81,7 +85,7 @@ export class Player {
     const barWidth = 100;
     const barHeight = 8;
     const barX = 20; // Position from left edge
-    const barY = 20; // Position from top edge
+    const barY = this.scene.cameras.main.height - 30; // Position from bottom edge (30px from bottom)
     
     // Create health bar background (red)
     this.healthBarBackground = this.scene.add.rectangle(barX, barY, barWidth, barHeight, 0xff0000, 0.8);
@@ -182,14 +186,24 @@ export class Player {
     const wasFlipped = this.sprite.flipX;
     this.sprite.flipX = wasFlipped;
     
-    // Ensure player doesn't fall through floor during down state
-    this.sprite.body.setGravityY(-100); // Counteract gravity
+    // Completely stop all movement and physics
+    this.sprite.body.setVelocityX(0); // Stop horizontal movement
     this.sprite.body.setVelocityY(0); // Stop vertical movement
+    this.sprite.body.setGravityY(-100); // Counteract gravity
+    this.sprite.body.setImmovable(true); // Make completely immovable
+    
+    // Stop any animations
+    this.sprite.anims.stop();
   }
   
   // Get up from down state
   getUp() {
     this.isDown = false;
+    
+    // Restore normal physics
+    this.sprite.body.setImmovable(false); // Allow movement again
+    this.sprite.body.setGravityY(-100); // Restore normal gravity
+    
     this.restoreNormalSprite();
   }
   
@@ -271,7 +285,7 @@ export class Player {
       
       // Play animation only if not in boat mode
       if (!this.isInBoatMode) {
-        this.sprite.play("walk", true);
+      this.sprite.play("walk", true);
       }
       
       if (this.isRunning) {
@@ -285,7 +299,7 @@ export class Player {
       
       // Play animation only if not in boat mode
       if (!this.isInBoatMode) {
-        this.sprite.play("walk", true);
+      this.sprite.play("walk", true);
       }
       
       if (this.isRunning) {
@@ -298,7 +312,7 @@ export class Player {
       
       // Stop animation only if not in boat mode
       if (!this.isInBoatMode) {
-        this.sprite.anims.stop();
+      this.sprite.anims.stop();
       }
       
       this.hideSpeedLines();
@@ -476,12 +490,12 @@ export class Player {
       this.sprite.body.setVelocityY(0);
     }
   }
-  
+
   // Check if player is in water and manage swimming sound
   updateWaterDetection() {
     if (!this.terrain || !this.swimmingSound || this.isDashing) {
       if (!this.isDashing) {
-        console.log('Water detection skipped: terrain or swimmingSound not available');
+      console.log('Water detection skipped: terrain or swimmingSound not available');
       }
       return;
     }
@@ -589,9 +603,10 @@ export class Player {
   // Take damage from enemy hits
   takeDamage(damageAmount) {
     this.currentHealth = Math.max(0, this.currentHealth - damageAmount);
+    this.hitCount++; // Increment hit count for game over transparency
     this.updateHealthBar();
     
-    console.log(`Player took ${damageAmount} damage. Health: ${this.currentHealth}/${this.maxHealth}`);
+    console.log(`Player took ${damageAmount} damage. Health: ${this.currentHealth}/${this.maxHealth}. Hit count: ${this.hitCount}`);
     
     // Check if player is defeated
     if (this.currentHealth <= 0) {
@@ -603,7 +618,17 @@ export class Player {
   handleDefeat() {
     console.log('Player defeated!');
     
-    // Set player to down state
+    // Stop all movement immediately
+    this.sprite.body.setVelocityX(0);
+    this.sprite.body.setVelocityY(0);
+    
+    // Stop bossfight music if it's playing
+    if (this.scene && this.scene.bossfightSound && this.scene.bossfightSound.isPlaying) {
+      this.scene.bossfightSound.stop();
+      console.log('Bossfight music stopped on game over');
+    }
+    
+    // Set player to down state (no movement)
     this.isDown = true;
     this.setDownState();
     
@@ -616,8 +641,16 @@ export class Player {
     const centerX = this.scene.cameras.main.width / 2;
     const centerY = this.scene.cameras.main.height / 2;
     
-    // Create semi-transparent overlay
-    this.gameOverOverlay = this.scene.add.rectangle(centerX, centerY, this.scene.cameras.main.width, this.scene.cameras.main.height, 0x000000, 0.7);
+    // Calculate transparency based on hit count (more hits = darker overlay)
+    // Start at 0.3 (30% opacity) and increase by 0.1 per hit, max 0.8 (80% opacity)
+    const baseOpacity = 0.3;
+    const opacityIncrease = Math.min(this.hitCount * 0.1, 0.5); // Max additional 50% opacity
+    const finalOpacity = Math.min(baseOpacity + opacityIncrease, 0.8); // Cap at 80% opacity
+    
+    console.log(`Game over overlay opacity: ${finalOpacity} (hit count: ${this.hitCount})`);
+    
+    // Create semi-transparent overlay with dynamic opacity
+    this.gameOverOverlay = this.scene.add.rectangle(centerX, centerY, this.scene.cameras.main.width, this.scene.cameras.main.height, 0x000000, finalOpacity);
     this.gameOverOverlay.setScrollFactor(0);
     this.gameOverOverlay.setDepth(2000);
     
@@ -635,7 +668,7 @@ export class Player {
     this.gameOverText.setDepth(2001);
     
     // Create restart instruction
-    this.restartText = this.scene.add.text(centerX, centerY + 20, 'Press ESC to restart from Hole 1', {
+    this.restartText = this.scene.add.text(centerX, centerY + 20, 'Press ESC to restart from current hole', {
       fontSize: '24px',
       fill: '#ffffff',
       stroke: '#000000',
@@ -669,5 +702,38 @@ export class Player {
     this.currentHealth = Math.min(this.maxHealth, this.currentHealth + healAmount);
     this.updateHealthBar();
     console.log(`Player healed ${healAmount}. Health: ${this.currentHealth}/${this.maxHealth}`);
+  }
+
+  // Save score at start of hole
+  saveHoleStartScore() {
+    if (this.scene && courseManager) {
+      // Save the total course score (sum of all completed holes)
+      this.holeStartScore = courseManager.getTotalScore();
+      console.log(`Hole start score saved: ${this.holeStartScore} strokes (total course score)`);
+    }
+  }
+
+  // Reset player state (for game restart)
+  resetPlayerState() {
+    this.currentHealth = this.maxHealth;
+    this.hitCount = 0;
+    this.isDown = false;
+    this.isKnockedBack = false;
+    this.isDashing = false;
+    this.updateHealthBar();
+    
+    // Restore course score to hole start score
+    if (courseManager && this.holeStartScore >= 0) {
+      // Reset the current hole's score in course manager
+      const currentHole = courseManager.getCurrentHole();
+      courseManager.scores[currentHole - 1] = 0; // Reset current hole score
+      
+      // Recalculate total score
+      courseManager.totalScore = courseManager.scores.reduce((sum, score) => sum + score, 0);
+      
+      console.log(`Course score restored to hole start: ${this.holeStartScore} strokes`);
+    }
+    
+    console.log('Player state reset for restart');
   }
 }
